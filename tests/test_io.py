@@ -3,7 +3,7 @@ import tarfile
 import numpy as np
 import pytest
 
-from terra_texture.io import _open_raster, load_dem, _fill_nan_nearest
+from TerraTexture.io import _open_raster, load_dem, _fill_nan_nearest
 
 rasterio = pytest.importorskip("rasterio")
 

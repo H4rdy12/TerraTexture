@@ -1,5 +1,5 @@
 """
-Command-line entry point: `terratexture` / `python -m terra_texture`.
+Command-line entry point: `terratexture` / `python -m TerraTexture`.
 
 Subcommands:
     terratexture curvature       DEM_PATH  -> plot_dem_curvature_softlight()

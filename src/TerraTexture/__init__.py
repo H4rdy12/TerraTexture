@@ -1,5 +1,5 @@
 """
-terra_texture
+TerraTexture
 ==========
 
 DEM curvature analysis + soft-light / luminosity-blended shaded relief
@@ -26,7 +26,7 @@ draping additionally requires contextily):
     - overlay.burn_data_onto_relief
 
 Each of these groups is importable independently -- e.g. you can use
-`terra_texture.derivatives` and `terra_texture.blend` with only numpy/scipy
+`TerraTexture.derivatives` and `TerraTexture.blend` with only numpy/scipy
 installed, with no rasterio or contextily on the system at all.
 """
 

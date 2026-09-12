@@ -2,28 +2,34 @@
 Drape DEM relief over real-world basemap imagery using the ArcGIS Pro /
 Photoshop "luminosity blend" recipe.
 
-Requires rasterio + contextily. Optionally requires DEMSquad_STAC if you
-use the `aoi_bounds=` ArcticDEM-STAC code path (see TerraTexture.sources).
+Requires rasterio + contextily. The `aoi_bounds=` code path additionally
+uses `requests` (via TerraTexture.sources) to query PGC's public STAC
+API -- no signup, no API key, no local software required.
 """
 
 import numpy as np
 import matplotlib.pyplot as plt
 
 from .io import _open_raster, load_dem_mosaic
-from .sources import ArcticDEM_stac
+from .sources import arcticdem_mosaic, rema_mosaic
 from .derivatives import curvatures, hillshade
 from .blend import soft_light, luminosity_blend
 from .stretch import normalize, stretch_std
+
+_AOI_PRODUCTS = {
+    "arcticdem": arcticdem_mosaic,
+    "rema": rema_mosaic,
+}
 
 
 def plot_dem_basemap_luminosity_relief(
     dem_path=None,
     aoi_bounds=None,
+    dem_product="arcticdem",
     arcticdem_resolution=32,
-    demsquad_path="/media/luna/hardydj/Scripts/DEMSquad_stable",
     source=None,
     zoom="auto",
-    target_crs="EPSG:3413",
+    target_crs=None,
     azimuth=315,
     altitude=45,
     curvature_std=4,
@@ -71,26 +77,30 @@ def plot_dem_basemap_luminosity_relief(
         this OR aoi_bounds, not both.
     aoi_bounds : tuple or None
         (x_min, y_min, x_max, y_max) in target_crs. ADDITIONAL alternative
-        to dem_path: instead of a local file, query the ArcticDEM STAC
-        catalog for this AOI via ArcticDEM_stac() (same underlying
-        DEMSquad_STAC.Query_PGC_catalog call DEMTimeSeriesPlotter uses),
-        merge the intersecting strips/tiles, and use that as the DEM.
-        Requires DEMSquad_STAC to be importable (see demsquad_path).
+        to dem_path: instead of a local file, query PGC's public STAC API
+        (https://stac.pgc.umn.edu/api/v1) for mosaic tiles intersecting
+        this AOI, merge them, and use that as the DEM. No signup, API
+        key, or local software required -- see TerraTexture.sources.
+    dem_product : {"arcticdem", "rema"}
+        Which PGC dataset to query when aoi_bounds is given. "arcticdem"
+        covers the Arctic (including Greenland); "rema" covers
+        Antarctica. Ignored when dem_path is given instead.
     arcticdem_resolution : int
-        ArcticDEM mosaic resolution in meters (e.g. 2, 10, 32). Only used
-        when aoi_bounds is given.
-    demsquad_path : str
-        sys.path entry for importing DEMSquad_STAC. Only used when
+        Mosaic resolution in meters (2, 10, or 32) for whichever
+        dem_product is selected -- the name is a holdover from when this
+        only supported ArcticDEM; it applies to REMA too. Only used when
         aoi_bounds is given.
     source : contextily provider or None
         Tile source, default contextily.providers.Esri.WorldImagery.
     zoom : int or "auto"
         Tile zoom level for the *source* imagery fetch (before it gets
         warped onto the DEM grid).
-    target_crs : str
-        CRS everything is composited in. Defaults to the DEM's own native
-        CRS for ArcticDEM (EPSG:3413); change only if you need a different
-        common CRS for some other DEM source.
+    target_crs : str or None
+        CRS everything is composited in. If None (the default), resolves
+        to the DEM's own native CRS: EPSG:3413 for ArcticDEM, EPSG:3031
+        for REMA when using aoi_bounds, or EPSG:3413 when using dem_path
+        (matching prior behaviour). Set explicitly if you need a
+        different common CRS.
     azimuth, altitude : float
         Sun position (degrees) for the hillshade.
     curvature_std, hillshade_std : float
@@ -119,17 +129,26 @@ def plot_dem_basemap_luminosity_relief(
     if dem_path is None and aoi_bounds is None:
         raise ValueError(
             "Provide either dem_path (file/.tar.gz/list of tiles) or "
-            "aoi_bounds (to query ArcticDEM_stac() for that AOI)."
+            "aoi_bounds (to query PGC's public STAC API for that AOI)."
         )
+    if aoi_bounds is not None and dem_product not in _AOI_PRODUCTS:
+        raise ValueError(f"dem_product must be one of {sorted(_AOI_PRODUCTS)}, got {dem_product!r}")
 
-    # -- open the DEM (path, mosaic list, or ArcticDEM STAC AOI query);
+    if target_crs is None:
+        if aoi_bounds is not None:
+            target_crs = "EPSG:3413" if dem_product == "arcticdem" else "EPSG:3031"
+        else:
+            target_crs = "EPSG:3413"
+
+    # -- open the DEM (path, mosaic list, or public STAC AOI query);
     #    only reproject if it isn't already in target_crs --
     if aoi_bounds is not None:
-        dem, cellsize, transform, mosaic_crs = ArcticDEM_stac(
+        fetch_mosaic = _AOI_PRODUCTS[dem_product]
+        dem, cellsize, transform, mosaic_crs = fetch_mosaic(
             aoi_bounds,
             resolution=arcticdem_resolution,
-            aoi_crs=target_crs,
-            demsquad_path=demsquad_path,
+            bbox_crs=target_crs,
+            target_crs=target_crs,
         )
         height, width = dem.shape
         target_crs = str(mosaic_crs)
@@ -265,11 +284,11 @@ def add_relief_basemap(
     axes,
     dem_path=None,
     aoi_bounds=None,
+    dem_product="arcticdem",
     arcticdem_resolution=32,
-    demsquad_path="/media/luna/hardydj/Scripts/DEMSquad_stable",
     source=None,
     zoom="auto",
-    target_crs="EPSG:3413",
+    target_crs=None,
     azimuth=315,
     altitude=45,
     curvature_std=4,
@@ -280,17 +299,15 @@ def add_relief_basemap(
     same image onto one or more existing matplotlib Axes as a background
     layer -- for dropping the relief into just the spatial panels of a
     larger multi-axes figure (e.g. a plt.subplot_mosaic layout) without
-    re-querying ArcticDEM/imagery per panel and without creating its own
+    re-querying the DEM/imagery per panel and without creating its own
     standalone figure.
 
-    Typical use: call this BEFORE your other per-axis plotting calls (e.g.
-    DEMTimeSeriesPlotter.add_slope_map / add_altimetry_interpolated with
-    add_basemap=False), so the relief sits underneath. The image is drawn
-    at `zorder` (default 0, i.e. bottom); anything you plot afterwards on
-    the same axes with the default zorder (~1+) will appear on top of it.
-    Since dhdt layers are typically opaque pcolormeshes, you'll usually
-    want to set some transparency on them afterwards so the relief shows
-    through -- e.g.:
+    Typical use: call this BEFORE your other per-axis plotting calls, so
+    the relief sits underneath. The image is drawn at `zorder` (default
+    0, i.e. bottom); anything you plot afterwards on the same axes with
+    the default zorder (~1+) will appear on top of it. Since data layers
+    are typically opaque pcolormeshes, you'll usually want to set some
+    transparency on them afterwards so the relief shows through -- e.g.:
 
         for coll in ax.collections:
             coll.set_alpha(0.75)
@@ -299,7 +316,7 @@ def add_relief_basemap(
     ----------
     axes : matplotlib.axes.Axes or sequence of Axes
         Axis (or axes) to draw the relief background on.
-    dem_path, aoi_bounds, arcticdem_resolution, demsquad_path, source,
+    dem_path, aoi_bounds, dem_product, arcticdem_resolution, source,
     zoom, target_crs, azimuth, altitude, curvature_std, hillshade_std :
         Same as plot_dem_basemap_luminosity_relief(); provide dem_path OR
         aoi_bounds, not both.
@@ -311,17 +328,12 @@ def add_relief_basemap(
     layers : dict
         Same dict plot_dem_basemap_luminosity_relief() returns (including
         'extent'), in case you want to reuse the relief array or bounds
-        elsewhere (e.g. to align a dh/dt overlay's axis limits).
+        elsewhere (e.g. to align a data overlay's axis limits).
 
     Example
     -------
-    >>> spatial_axes = [axs['DEM dhdt'], axs['Altim dhdt'],
-    ...                 axs['DEM dhdt IS2'], axs['Altim dhdt IS2']]
-    >>> add_relief_basemap(spatial_axes, aoi_bounds=plotter.bounds)
-    >>> plotter.add_slope_map(axs['DEM dhdt'], vmin=-6, vmax=6,
-    ...                        add_basemap=False)
-    >>> for coll in axs['DEM dhdt'].collections:
-    ...     coll.set_alpha(0.75)
+    >>> spatial_axes = [ax1, ax2]
+    >>> add_relief_basemap(spatial_axes, aoi_bounds=my_bounds)
     """
     if isinstance(axes, plt.Axes):
         axes = [axes]
@@ -329,8 +341,8 @@ def add_relief_basemap(
     _fig, _ax, layers = plot_dem_basemap_luminosity_relief(
         dem_path=dem_path,
         aoi_bounds=aoi_bounds,
+        dem_product=dem_product,
         arcticdem_resolution=arcticdem_resolution,
-        demsquad_path=demsquad_path,
         source=source,
         zoom=zoom,
         target_crs=target_crs,

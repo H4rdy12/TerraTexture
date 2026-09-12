@@ -17,7 +17,7 @@ implementation whenever the extension isn't built, the platform has no
 prebuilt wheel, or the inputs don't match the fast path's requirements
 (wrong dtype, non-contiguous, mismatched shape). That fallback is
 load-bearing, not incidental: this package's stated design goal is that
-`terra_texture.derivatives`/`terra_texture.blend` have zero hard
+`TerraTexture.derivatives`/`TerraTexture.blend` have zero hard
 dependencies beyond numpy/scipy, and nobody should have to install a
 Rust toolchain just to run curvature analysis.
 

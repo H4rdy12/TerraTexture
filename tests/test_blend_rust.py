@@ -17,7 +17,7 @@ Skips entirely (not failing) when the extension hasn't been built --
 import numpy as np
 import pytest
 
-from terra_texture.blend import soft_light, luminosity_blend, _soft_light_numpy, _luminosity_blend_numpy
+from TerraTexture.blend import soft_light, luminosity_blend, _soft_light_numpy, _luminosity_blend_numpy
 
 terra_texture_rs = pytest.importorskip("terra_texture_rs")
 

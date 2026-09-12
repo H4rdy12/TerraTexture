@@ -4,7 +4,7 @@ import pytest
 
 requests = pytest.importorskip("requests")
 
-from terra_texture.sources import (  # noqa: E402
+from TerraTexture.sources import (  # noqa: E402
     stac_search,
     mosaic_dem_urls,
     arcticdem_mosaic_urls,
