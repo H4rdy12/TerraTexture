@@ -1,0 +1,164 @@
+name: ci
+
+# Runs on every push and PR. Branch protection on `main` requires the
+# `all-checks` job (see bottom of this file) to pass before a PR can be
+# merged -- see scripts/setup-branch-protection.sh / README "Branch
+# protection" section for how that requirement is configured on GitHub's
+# side (it isn't something this YAML file can enforce by itself).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ---------------------------------------------------------------------
+  # BUILD -- confirms the Python package and the Rust crate actually
+  # compile/package cleanly, independent of whether the tests pass.
+  # ---------------------------------------------------------------------
+  build-python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Build sdist + wheel
+        run: uv build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-dist
+          path: dist/
+
+  build-rust:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rust/target
+          key: cargo-build-${{ runner.os }}-${{ hashFiles('rust/Cargo.lock') }}
+
+      - name: cargo build
+        run: cargo build --release --all-targets
+
+  # ---------------------------------------------------------------------
+  # LINT
+  # ---------------------------------------------------------------------
+  lint-python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Sync environment (dev only -- flake8 doesn't need rasterio)
+        run: uv sync --group dev
+
+      - name: flake8
+        run: uv run flake8 src tests examples
+
+  lint-rust:
+    # Formatting + static analysis for rust/dem_relief_rs. The crate is
+    # currently a stub (see rust/src/lib.rs) but is linted from day one
+    # so it stays clean as real kernels get ported into it.
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rust/target
+          key: cargo-lint-${{ runner.os }}-${{ hashFiles('rust/Cargo.lock') }}
+
+      - name: cargo fmt --check
+        run: cargo fmt --check
+
+      - name: cargo clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+  # ---------------------------------------------------------------------
+  # TEST
+  # ---------------------------------------------------------------------
+  test-python:
+    # core deps + rasterio, managed by uv -- tests/test_io.py exercises
+    # the raster-dependent paths; everything else runs regardless.
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Sync environment (dev + raster extras)
+        run: uv sync --group dev --extra raster --python ${{ matrix.python-version }}
+
+      - name: Run tests
+        run: uv run pytest -v
+
+  # ---------------------------------------------------------------------
+  # AGGREGATOR -- set THIS as the single required status check in branch
+  # protection, instead of listing every job above individually. That way
+  # adding/renaming/removing a job here never requires re-editing the
+  # branch protection rule on GitHub -- it just needs "all-checks" green.
+  # ---------------------------------------------------------------------
+  all-checks:
+    if: always()
+    needs:
+      - build-python
+      - build-rust
+      - lint-python
+      - lint-rust
+      - test-python
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any dependent job failed
+        run: |
+          echo "${{ toJSON(needs) }}"
+          if [[ "${{ contains(needs.*.result, 'failure') }}" == "true" ]]; then
+            echo "One or more required jobs failed."
+            exit 1
+          fi
+          if [[ "${{ contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
+            echo "One or more required jobs were cancelled."
+            exit 1
+          fi
