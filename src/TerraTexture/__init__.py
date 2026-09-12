@@ -1,5 +1,5 @@
 """
-TerraTexture
+terra_texture
 ==========
 
 DEM curvature analysis + soft-light / luminosity-blended shaded relief
@@ -14,14 +14,19 @@ Core pieces (no rasterio/contextily required):
 Raster I/O (requires rasterio):
     - io.load_dem / load_dem_mosaic / _open_raster
 
-Remote imagery + ArcticDEM STAC (requires rasterio + contextily,
-optionally DEMSquad_STAC):
-    - sources.ArcticDEM_stac / make_demo_geotiff
+Remote/open-data DEM sources (requires rasterio + requests; basemap
+draping additionally requires contextily):
+    - sources.stac_search / arcticdem_mosaic / rema_mosaic  -- dynamic
+      STAC APIs (PGC)
+    - sources.list_stac_collections / stac_collection_items /
+      opentopography_mosaic  -- static/search-less STAC catalogs
+      (OpenTopography, and any other STAC catalog by URL)
+    - sources.make_demo_geotiff
     - basemap.plot_dem_basemap_luminosity_relief / add_relief_basemap
     - overlay.burn_data_onto_relief
 
 Each of these groups is importable independently -- e.g. you can use
-`TerraTexture.derivatives` and `TerraTexture.blend` with only numpy/scipy
+`terra_texture.derivatives` and `terra_texture.blend` with only numpy/scipy
 installed, with no rasterio or contextily on the system at all.
 """
 
