@@ -1,0 +1,14 @@
+/Users/domhardy/Desktop/TerraTexture/TerraTexture/rust/target/debug/deps/libpyo3_build_config-48c97c70c9e8058c.rmeta: /Users/domhardy/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pyo3-build-config-0.22.6/src/lib.rs /Users/domhardy/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pyo3-build-config-0.22.6/src/errors.rs /Users/domhardy/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pyo3-build-config-0.22.6/src/impl_.rs /Users/domhardy/Desktop/TerraTexture/TerraTexture/rust/target/debug/build/pyo3-build-config-451ca44718c28e35/out/pyo3-build-config-file.txt /Users/domhardy/Desktop/TerraTexture/TerraTexture/rust/target/debug/build/pyo3-build-config-451ca44718c28e35/out/pyo3-build-config.txt
+
+/Users/domhardy/Desktop/TerraTexture/TerraTexture/rust/target/debug/deps/libpyo3_build_config-48c97c70c9e8058c.rlib: /Users/domhardy/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pyo3-build-config-0.22.6/src/lib.rs /Users/domhardy/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pyo3-build-config-0.22.6/src/errors.rs /Users/domhardy/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pyo3-build-config-0.22.6/src/impl_.rs /Users/domhardy/Desktop/TerraTexture/TerraTexture/rust/target/debug/build/pyo3-build-config-451ca44718c28e35/out/pyo3-build-config-file.txt /Users/domhardy/Desktop/TerraTexture/TerraTexture/rust/target/debug/build/pyo3-build-config-451ca44718c28e35/out/pyo3-build-config.txt
+
+/Users/domhardy/Desktop/TerraTexture/TerraTexture/rust/target/debug/deps/pyo3_build_config-48c97c70c9e8058c.d: /Users/domhardy/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pyo3-build-config-0.22.6/src/lib.rs /Users/domhardy/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pyo3-build-config-0.22.6/src/errors.rs /Users/domhardy/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pyo3-build-config-0.22.6/src/impl_.rs /Users/domhardy/Desktop/TerraTexture/TerraTexture/rust/target/debug/build/pyo3-build-config-451ca44718c28e35/out/pyo3-build-config-file.txt /Users/domhardy/Desktop/TerraTexture/TerraTexture/rust/target/debug/build/pyo3-build-config-451ca44718c28e35/out/pyo3-build-config.txt
+
+/Users/domhardy/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pyo3-build-config-0.22.6/src/lib.rs:
+/Users/domhardy/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pyo3-build-config-0.22.6/src/errors.rs:
+/Users/domhardy/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pyo3-build-config-0.22.6/src/impl_.rs:
+/Users/domhardy/Desktop/TerraTexture/TerraTexture/rust/target/debug/build/pyo3-build-config-451ca44718c28e35/out/pyo3-build-config-file.txt:
+/Users/domhardy/Desktop/TerraTexture/TerraTexture/rust/target/debug/build/pyo3-build-config-451ca44718c28e35/out/pyo3-build-config.txt:
+
+# env-dep:CARGO_PKG_VERSION=0.22.6
+# env-dep:OUT_DIR=/Users/domhardy/Desktop/TerraTexture/TerraTexture/rust/target/debug/build/pyo3-build-config-451ca44718c28e35/out
