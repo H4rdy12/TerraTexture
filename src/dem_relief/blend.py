@@ -34,11 +34,11 @@ def _clip_color(rgb):
     """SVG compositing spec ClipColor(): pull an RGB triple back into
     [0, 1] gamut around its own luminosity, rather than a naive per-channel
     clip (which would shift hue/saturation)."""
-    l = _lum(rgb)[..., None]
+    lum = _lum(rgb)[..., None]
     n = rgb.min(axis=-1, keepdims=True)
     x = rgb.max(axis=-1, keepdims=True)
-    rgb = np.where(n < 0, l + (rgb - l) * l / (l - n + 1e-12), rgb)
-    rgb = np.where(x > 1, l + (rgb - l) * (1 - l) / (x - l + 1e-12), rgb)
+    rgb = np.where(n < 0, lum + (rgb - lum) * lum / (lum - n + 1e-12), rgb)
+    rgb = np.where(x > 1, lum + (rgb - lum) * (1 - lum) / (x - lum + 1e-12), rgb)
     return np.clip(rgb, 0, 1)
 
 

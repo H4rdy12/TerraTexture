@@ -22,10 +22,14 @@ def main(argv=None):
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_curv = sub.add_parser("curvature", help="6-panel curvature + soft-lit relief figure")
-    p_curv.add_argument("dem_path", nargs="?", default=None,
-                         help="Path to a DEM raster (.tif, .tar.gz, ...). Omit for a synthetic demo DEM.")
-    p_curv.add_argument("--cellsize", type=float, default=None,
-                         help="Override cell size (map units/pixel). Auto-detected from raster if omitted.")
+    p_curv.add_argument(
+        "dem_path", nargs="?", default=None,
+        help="Path to a DEM raster (.tif, .tar.gz, ...). Omit for a synthetic demo DEM.",
+    )
+    p_curv.add_argument(
+        "--cellsize", type=float, default=None,
+        help="Override cell size (map units/pixel). Auto-detected from raster if omitted.",
+    )
     p_curv.add_argument("--out", dest="out_png", default=None, help="Save figure to this PNG path.")
     p_curv.add_argument("--no-show", action="store_true", help="Don't open an interactive window.")
 
