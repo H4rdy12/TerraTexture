@@ -1,8 +1,8 @@
-//! Starting point for a PyO3-accelerated version of `dem_relief.blend`.
+//! Starting point for a PyO3-accelerated version of `TerraTexture.blend`.
 //!
-//! Not yet imported by the Python package -- `dem_relief/blend.py` still
+//! Not yet imported by the Python package -- `TerraTexture/blend.py` still
 //! uses the pure-numpy implementation. Build this with `maturin develop`
-//! (from this `rust/` directory) to get an importable `dem_relief_rs`
+//! (from this `rust/` directory) to get an importable `TerraTexture`
 //! module, then wire it in behind a try/except ImportError fallback in
 //! `blend.py` once it's validated against `tests/test_blend.py`'s cases.
 //!
@@ -24,20 +24,23 @@ fn soft_light<'py>(
     let b = blend.as_array();
     let mut out = ndarray::Array2::<f32>::zeros(a.raw_dim());
 
-    Zip::from(&mut out).and(&a).and(&b).par_for_each(|o, &a, &b| {
-        *o = if b <= 0.5 {
-            2.0 * a * b + a * a * (1.0 - 2.0 * b)
-        } else {
-            2.0 * a * (1.0 - b) + a.max(0.0).sqrt() * (2.0 * b - 1.0)
-        };
-        *o = o.clamp(0.0, 1.0);
-    });
+    Zip::from(&mut out)
+        .and(&a)
+        .and(&b)
+        .par_for_each(|o, &a, &b| {
+            *o = if b <= 0.5 {
+                2.0 * a * b + a * a * (1.0 - 2.0 * b)
+            } else {
+                2.0 * a * (1.0 - b) + a.max(0.0).sqrt() * (2.0 * b - 1.0)
+            };
+            *o = o.clamp(0.0, 1.0);
+        });
 
     out.into_pyarray_bound(py)
 }
 
 #[pymodule]
-fn dem_relief_rs(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn TerraTexture_rs(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(soft_light, m)?)?;
     Ok(())
 }
