@@ -3,6 +3,16 @@
 version = 4
 
 [[package]]
+name = "TerraTexture_rs"
+version = "0.1.0"
+dependencies = [
+ "ndarray",
+ "numpy",
+ "pyo3",
+ "rayon",
+]
+
+[[package]]
 name = "autocfg"
 version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -38,16 +48,6 @@ name = "crossbeam-utils"
 version = "0.8.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a31eee39dddec8330830986fcd7625edb5a24ec90ea038215273bbc3adb08ac6"
-
-[[package]]
-name = "dem_relief_rs"
-version = "0.1.0"
-dependencies = [
- "ndarray 0.15.6",
- "numpy",
- "pyo3",
- "rayon",
-]
 
 [[package]]
 name = "either"
@@ -97,20 +97,6 @@ dependencies = [
 
 [[package]]
 name = "ndarray"
-version = "0.15.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "adb12d4e967ec485a5f71c6311fe28158e9d6f4bc4a447b474184d0f91a8fa32"
-dependencies = [
- "matrixmultiply",
- "num-complex",
- "num-integer",
- "num-traits",
- "rawpointer",
- "rayon",
-]
-
-[[package]]
-name = "ndarray"
 version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "882ed72dce9365842bf196bdeedf5055305f11fc8c03dee7bb0194a6cad34841"
@@ -122,6 +108,7 @@ dependencies = [
  "portable-atomic",
  "portable-atomic-util",
  "rawpointer",
+ "rayon",
 ]
 
 [[package]]
@@ -158,7 +145,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "edb929bc0da91a4d85ed6c0a84deaa53d411abfb387fc271124f91bf6b89f14e"
 dependencies = [
  "libc",
- "ndarray 0.16.1",
+ "ndarray",
  "num-complex",
  "num-integer",
  "num-traits",

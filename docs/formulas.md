@@ -53,7 +53,7 @@ will agree closely in smooth interior regions but can diverge slightly:
   slightly more than the ZT stencil's direct second-derivative formula.
 
 If you need bit-for-bit parity with ArcGIS/GRASS/QGIS curvature outputs,
-replace `_derivatives()` in `dem_relief/derivatives.py` with a direct
+replace `_derivatives()` in `TerraTexture/derivatives.py` with a direct
 `scipy.ndimage.convolve` implementation of the ZT 3x3 kernels for
 `r`, `t`, and `s`. This is also computationally cheaper (one convolution
 pass per second derivative, vs. two sequential `np.gradient` calls).

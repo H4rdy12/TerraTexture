@@ -23,7 +23,7 @@ dependencies = [
 raster = [
     "rasterio",
 ]
-# Draping relief over basemap imagery (dem_relief.basemap, dem_relief.overlay).
+# Draping relief over basemap imagery (TerraTexture.basemap, TerraTexture.overlay).
 basemap = [
     "rasterio",
     "contextily",
@@ -43,7 +43,7 @@ dev = [
 ]
 
 [project.scripts]
-dem-relief = "dem_relief.cli:main"
+dem-relief = "TerraTexture.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/yourname/dem-relief"

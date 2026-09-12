@@ -1,4 +1,4 @@
-# dem-relief
+# TerraTexture
 
 DEM curvature analysis and soft-light / luminosity-blended shaded relief
 visualization.

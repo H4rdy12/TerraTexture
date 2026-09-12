@@ -1,16 +1,16 @@
 [package]
-name = "dem_relief_rs"
+name = "TerraTexture_rs"
 version = "0.1.0"
 edition = "2021"
 
 [lib]
-name = "dem_relief_rs"
+name = "TerraTexture_rs"
 crate-type = ["cdylib"]
 
 [dependencies]
 pyo3 = { version = "0.22", features = ["extension-module"] }
 numpy = "0.22"
-ndarray = { version = "0.15", features = ["rayon"] }
+ndarray = { version = "0.16", features = ["rayon"] }
 rayon = "1"
 
 # Build with `maturin develop` (from the rust/ directory, with a venv
