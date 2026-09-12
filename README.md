@@ -14,12 +14,28 @@ draped over real basemap imagery.
 
 ## Install
 
+This project is managed with [uv](https://docs.astral.sh/uv/). Install
+uv itself first if you don't have it:
+
 ```bash
-pip install -e .                 # core: curvature + hillshade + blend math on numpy arrays
-pip install -e ".[raster]"       # + loading real DEM files (rasterio)
-pip install -e ".[basemap]"      # + draping relief over basemap imagery (rasterio + contextily)
-pip install -e ".[dev]"          # + pytest, ruff
+curl -LsSf https://astral.sh/uv/install.sh | sh   # or: pipx install uv / brew install uv
 ```
+
+Then, from the repo root:
+
+```bash
+uv sync                                    # core deps only (numpy/scipy/matplotlib)
+uv sync --extra raster                     # + loading real DEM files (rasterio)
+uv sync --extra basemap                    # + draping relief over basemap imagery (rasterio + contextily)
+uv sync --group dev                        # + pytest, flake8 (dev tooling)
+uv sync --group dev --extra raster         # dev tooling + raster extras together (typical local setup)
+```
+
+`uv sync` creates/updates a `.venv/` in the repo root and a `uv.lock`
+lockfile pinning exact versions -- commit `uv.lock` so CI and everyone
+on the project resolve identical dependency versions. Run anything
+inside that environment with `uv run`, e.g. `uv run pytest` or
+`uv run dem-relief curvature`, without manually activating the venv.
 
 The core install (numpy/scipy/matplotlib only) is enough for
 `dem_relief.derivatives`, `dem_relief.blend`, `dem_relief.stretch`, and
@@ -35,7 +51,7 @@ manually and either add it to your `PYTHONPATH` or pass
 ## Quickstart
 
 ```bash
-python examples/quickstart.py
+uv run python examples/quickstart.py
 ```
 
 ```python
@@ -49,9 +65,9 @@ fig, axes, results = plot_dem_curvature_softlight(dem, cellsize=cellsize)
 Or via the CLI:
 
 ```bash
-dem-relief curvature                       # synthetic demo DEM
-dem-relief curvature path/to/dem.tif --out relief.png
-dem-relief basemap path/to/arcticdem_tile.tar.gz --out relief.png
+uv run dem-relief curvature                       # synthetic demo DEM
+uv run dem-relief curvature path/to/dem.tif --out relief.png
+uv run dem-relief basemap path/to/arcticdem_tile.tar.gz --out relief.png
 ```
 
 ## Draping relief over basemap imagery
@@ -103,12 +119,31 @@ array math with no I/O.
 ## Testing
 
 ```bash
-pytest
+uv run pytest
 ```
 
 `tests/test_derivatives.py` and `tests/test_blend.py` run without
-rasterio installed. `tests/test_io.py` is skipped automatically if
-rasterio isn't available.
+rasterio installed. `tests/test_io.py` is skipped automatically (via
+`pytest.importorskip`) if rasterio isn't in the synced environment --
+run `uv sync --group dev --extra raster` first to include it.
+
+## Linting
+
+Python (flake8, config in `pyproject.toml`'s `[tool.flake8]`):
+
+```bash
+uv run flake8 src tests examples
+```
+
+Rust (once `rust/dem_relief_rs` has real code beyond the stub):
+
+```bash
+cd rust
+cargo fmt --check
+cargo clippy --all-targets -- -D warnings
+```
+
+Both run in CI on every push/PR (see `.github/workflows/test.yml`).
 
 ## Background
 
