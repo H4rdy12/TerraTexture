@@ -1,0 +1,22 @@
+# CODEOWNERS
+#
+# When branch protection has "Require review from Code Owners" enabled,
+# GitHub automatically requests a review from whoever is listed below
+# for any PR touching the matched paths, and blocks merging until they
+# approve.
+#
+# See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default: anything not matched more specifically below.
+*                           @H4rdy12
+
+# CI/CD and repo policy changes get extra scrutiny.
+/.github/                  @H4rdy12
+
+# Core science modules -- curvature formulas and blend math are the
+# most correctness-sensitive part of the codebase.
+/src/terra_texture/derivatives.py   @H4rdy12
+/src/terra_texture/blend.py         @H4rdy12
+
+# Rust extension crate.
+/rust/                     @H4rdy12

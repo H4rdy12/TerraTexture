@@ -1,0 +1,61 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dem-relief"
+version = "0.1.0"
+description = "DEM curvature analysis + soft-light / luminosity-blended shaded relief visualization"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.9"
+authors = [
+    { name = "Your Name" },
+]
+dependencies = [
+    "numpy",
+    "scipy",
+    "matplotlib",
+]
+
+[project.optional-dependencies]
+# Loading real DEM rasters (GeoTIFF, .tar.gz mosaic archives, mosaicking).
+raster = [
+    "rasterio",
+]
+# Draping relief over basemap imagery (TerraTexture.basemap, TerraTexture.overlay).
+basemap = [
+    "rasterio",
+    "contextily",
+]
+# ArcticDEM STAC querying additionally needs DEMSquad_STAC, which isn't on
+# PyPI -- install it manually and point demsquad_path= at its location.
+
+[dependency-groups]
+# uv-native dev group (PEP 735) -- installed via `uv sync --group dev`,
+# kept separate from [project.optional-dependencies] because this is
+# tooling for working ON the package, not a runtime feature someone
+# `pip install`s the published package for.
+dev = [
+    "pytest",
+    "flake8",
+    "flake8-pyproject",
+]
+
+[project.scripts]
+dem-relief = "TerraTexture.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/yourname/dem-relief"
+Issues = "https://github.com/yourname/dem-relief/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.flake8]
+max-line-length = 120
+extend-ignore = ["E203", "W503"]
+exclude = [".venv", "build", "dist", "*.egg-info", "rust"]
