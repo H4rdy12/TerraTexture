@@ -73,14 +73,14 @@ uses the same functions under the hood -- see "Draping relief over
 basemap imagery" below.
 
 ## Open-data DEM sources
- 
+
 `terra_texture.sources` (needs `requests`, included in the
 `raster`/`basemap` extras above) fetches real elevation data for an AOI
 from public, unauthenticated STAC catalogs -- no signup, no API key, no
 local software to install. It supports two catalogs today, and each
 needs a genuinely different query approach, because STAC catalogs come
 in two practically-different flavours:
- 
+
 - **Dynamic STAC APIs** implement the STAC Item Search extension: a
   `POST /search` endpoint that accepts a bbox and does the spatial
   filtering server-side. Fast, and scales to catalogs with millions of
@@ -91,9 +91,9 @@ in two practically-different flavours:
   fetching its items and filtering by bbox yourself.
 `sources.py` has one engine for each, and the product-specific functions
 below are thin wrappers around whichever engine fits their catalog.
- 
+
 ### PGC (ArcticDEM / REMA): dynamic STAC search
- 
+
 The [Polar Geospatial Center](https://www.pgc.umn.edu) (PGC, University
 of Minnesota) publishes ArcticDEM (covers the Arctic, including
 Greenland) and REMA (Antarctica) as a fully dynamic, public STAC API at
@@ -102,28 +102,28 @@ Greenland) and REMA (Antarctica) as a fully dynamic, public STAC API at
 `stac_search()` POSTs a bbox + collection ID and follows pagination;
 `arcticdem_mosaic()`/`rema_mosaic()` wrap it with the right collection
 naming for each product's mosaic resolutions (2m/10m/32m):
- 
+
 ```python
 from terra_texture.sources import arcticdem_mosaic, rema_mosaic
- 
+
 # bounds in EPSG:3413 (ArcticDEM's native CRS); covers the Arctic,
 # including Greenland
 dem, cellsize, transform, crs = arcticdem_mosaic(
     bounds=(-200000, -2300000, 0, -2100000), resolution=32,
 )
- 
+
 # bounds in EPSG:4326 for REMA (Antarctica)
 dem, cellsize, transform, crs = rema_mosaic(
     bounds=(-70, -75, -65, -73), resolution=32, bbox_crs="EPSG:4326",
 )
 ```
- 
+
 `plot_dem_basemap_luminosity_relief(aoi_bounds=..., dem_product="arcticdem" | "rema")`
 uses the same functions under the hood -- see "Draping relief over
 basemap imagery" below.
- 
+
 ### OpenTopography: static catalog, choosing from a large collection
- 
+
 OpenTopography publishes a much larger, more heterogeneous set of raster
 DEM datasets (global products like SRTM/COP30/NASADEM alongside many
 regional lidar-derived DEMs) as a **static** STAC catalog with no search
@@ -134,46 +134,46 @@ then fetches that Collection's items and filters them by bbox
 intersection client-side, since the server can't do it for you. The
 workflow is "list what's available, then fetch from whichever one you
 pick":
- 
+
 ```python
 from terra_texture.sources import list_stac_collections, opentopography_mosaic, OT_STAC_ROOT
- 
+
 for collection in list_stac_collections(OT_STAC_ROOT):
     print(collection["id"])
- 
+
 dem, cellsize, transform, crs = opentopography_mosaic(
     "SRTM GL1",                      # collection id from the list above
     bounds=(-121.8, 36.5, -121.6, 36.7),  # (min_lon, min_lat, max_lon, max_lat)
 )
 ```
- 
+
 Or via the CLI:
- 
+
 ```bash
 terratexture opentopography list
 terratexture opentopography fetch "SRTM GL1" -121.8 36.5 -121.6 36.7 --out srtm.tif
 ```
- 
+
 `asset_key` (default `"data"`) controls which item asset is treated as
 the DEM -- if it's wrong for a given collection, you'll get a `KeyError`
 listing that collection's actual asset keys, so it's self-correcting.
- 
+
 ## Quickstart
- 
+
 ```bash
 uv run python examples/quickstart.py
 ```
- 
+
 ```python
 from terra_texture.io import load_dem
 from terra_texture.plotting import plot_dem_curvature_softlight
- 
+
 dem, cellsize = load_dem(None)  # synthetic demo DEM
 fig, axes, results = plot_dem_curvature_softlight(dem, cellsize=cellsize)
 ```
- 
+
 Or via the CLI:
- 
+
 ```bash
 uv run terratexture curvature                       # synthetic demo DEM
 uv run terratexture curvature path/to/dem.tif --out relief.png
@@ -181,17 +181,17 @@ uv run terratexture basemap path/to/arcticdem_tile.tar.gz --out relief.png
 uv run terratexture opentopography list             # browse available datasets
 uv run terratexture opentopography fetch "SRTM GL1" -121.8 36.5 -121.6 36.7 --out srtm.tif
 ```
- 
+
 ## Draping relief over basemap imagery
- 
+
 ```python
 from terra_texture.basemap import plot_dem_basemap_luminosity_relief
- 
+
 fig, ax, layers = plot_dem_basemap_luminosity_relief(
     dem_path="path/to/15_44_32m_v4.1.tar.gz",   # ArcticDEM mosaic tile, or any GeoTIFF
     out_png="relief.png",
 )
- 
+
 # or, without any local file, straight from PGC's public STAC API:
 fig, ax, layers = plot_dem_basemap_luminosity_relief(
     aoi_bounds=(-200000, -2300000, 0, -2100000),
@@ -200,16 +200,16 @@ fig, ax, layers = plot_dem_basemap_luminosity_relief(
     out_png="relief.png",
 )
 ```
- 
+
 See `examples/arcticdem_basemap.py` for a runnable version (pass `--dem`
 or set `TERRA_TEXTURE_DEMO_TILE`).
- 
+
 ### Customizing the basemap and hillshade
- 
+
 `source`, `zoom`, `azimuth`, and `altitude` are ordinary keyword
 arguments passed straight through to `contextily.bounds2img()` and the
 hillshade calculation respectively -- nothing is hardcoded:
- 
+
 ```python
 import contextily as ctx
  
@@ -222,13 +222,13 @@ fig, ax, layers = plot_dem_basemap_luminosity_relief(
     out_png="relief.png",
 )
 ```
- 
+
 `contextily.providers` has dozens of options nested by family
 (`ctx.providers.<Family>.<Variant>`), and some require a personal API
 key you'd have to supply yourself (their placeholder value is literally
 `"<insert your API key here>"` until you do — including, as of writing,
 all of CartoDB's variants). These work with no key or signup at all:
- 
+
 | Provider | Style |
 |---|---|
 | `Esri.WorldImagery` (default) | Satellite/aerial |
@@ -239,14 +239,14 @@ all of CartoDB's variants). These work with no key or signup at all:
 | `Esri.OceanBasemap` | Bathymetry-focused |
 | `OpenStreetMap.Mapnik` | Standard OSM |
 | `OpenTopoMap` | Contour-line topographic |
- 
+
 Stadia, Thunderforest, MapBox, MapTiler, and Jawg all require your own
 API key (set via the provider object, e.g.
 `ctx.providers.Stadia.AlidadeSmooth(api_key="...")`) before they'll
 return real tiles.
- 
+
 ## Burning scientific data onto relief
- 
+
 ```python
 from terra_texture.basemap import add_relief_basemap
 from terra_texture.overlay import burn_data_onto_relief
@@ -257,8 +257,7 @@ composite, mappable = burn_data_onto_relief(
 )
 ax.imshow(composite, extent=layers["extent"])
 ```
- 
+
 ## License
- 
+
 MIT
- 
