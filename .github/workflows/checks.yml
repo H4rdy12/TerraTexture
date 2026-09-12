@@ -102,6 +102,19 @@ jobs:
             rust/target
           key: cargo-lint-${{ runner.os }}-${{ hashFiles('rust/Cargo.lock') }}
 
+      # TEMPORARY DIAGNOSTIC: rustfmt's suggested diffs have been
+      # producing lines well over this file's configured max_width=100
+      # (measured 113-117 chars), which shouldn't be possible if the
+      # config is actually being read. `--print-config current` dumps
+      # the fully-resolved config rustfmt is ACTUALLY using, including
+      # which max_width value won and (if verbose enough) where it came
+      # from -- remove this step once the mismatch above is understood
+      # and fixed.
+      - name: DEBUG - print resolved rustfmt config
+        run: |
+          rustfmt --version
+          rustfmt --print-config current src/lib.rs | grep -i "max_width\|edition"
+
       - name: cargo fmt --check
         run: cargo fmt --check
 
