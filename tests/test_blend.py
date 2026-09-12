@@ -1,6 +1,6 @@
 import numpy as np
 
-from dem_relief.blend import soft_light, luminosity_blend, _lum
+from TerraTexture.blend import soft_light, luminosity_blend, _lum
 
 
 def test_soft_light_output_in_unit_range():

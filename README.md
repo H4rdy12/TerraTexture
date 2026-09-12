@@ -38,12 +38,12 @@ inside that environment with `uv run`, e.g. `uv run pytest` or
 `uv run dem-relief curvature`, without manually activating the venv.
 
 The core install (numpy/scipy/matplotlib only) is enough for
-`dem_relief.derivatives`, `dem_relief.blend`, `dem_relief.stretch`, and
-`dem_relief.plotting` on an in-memory array or the built-in synthetic
+`TerraTexture.derivatives`, `TerraTexture.blend`, `TerraTexture.stretch`, and
+`TerraTexture.plotting` on an in-memory array or the built-in synthetic
 demo DEM. Real raster I/O and basemap imagery need the optional extras
 above.
 
-ArcticDEM STAC querying (`dem_relief.sources.ArcticDEM_stac`)
+ArcticDEM STAC querying (`TerraTexture.sources.ArcticDEM_stac`)
 additionally needs `DEMSquad_STAC`, which isn't on PyPI -- install it
 manually and either add it to your `PYTHONPATH` or pass
 `demsquad_path=` pointing at its location.
@@ -55,8 +55,8 @@ uv run python examples/quickstart.py
 ```
 
 ```python
-from dem_relief.io import load_dem
-from dem_relief.plotting import plot_dem_curvature_softlight
+from TerraTexture.io import load_dem
+from TerraTexture.plotting import plot_dem_curvature_softlight
 
 dem, cellsize = load_dem(None)  # synthetic demo DEM
 fig, axes, results = plot_dem_curvature_softlight(dem, cellsize=cellsize)
@@ -73,7 +73,7 @@ uv run dem-relief basemap path/to/arcticdem_tile.tar.gz --out relief.png
 ## Draping relief over basemap imagery
 
 ```python
-from dem_relief.basemap import plot_dem_basemap_luminosity_relief
+from TerraTexture.basemap import plot_dem_basemap_luminosity_relief
 
 fig, ax, layers = plot_dem_basemap_luminosity_relief(
     dem_path="path/to/15_44_32m_v4.1.tar.gz",   # ArcticDEM mosaic tile, or any GeoTIFF
@@ -82,13 +82,13 @@ fig, ax, layers = plot_dem_basemap_luminosity_relief(
 ```
 
 See `examples/arcticdem_basemap.py` for a runnable version (pass `--dem`
-or set `DEM_RELIEF_DEMO_TILE`).
+or set `TerraTexture_DEMO_TILE`).
 
 ## Burning scientific data onto relief
 
 ```python
-from dem_relief.basemap import add_relief_basemap
-from dem_relief.overlay import burn_data_onto_relief
+from TerraTexture.basemap import add_relief_basemap
+from TerraTexture.overlay import burn_data_onto_relief
 
 layers = add_relief_basemap(ax, aoi_bounds=my_bounds)
 composite, mappable = burn_data_onto_relief(
@@ -101,17 +101,17 @@ ax.imshow(composite, extent=layers["extent"])
 
 | Module              | Purpose                                             | Extra dependencies      |
 |---------------------|------------------------------------------------------|--------------------------|
-| `dem_relief.io`         | Load DEM rasters, merge multi-tile mosaics       | `rasterio`               |
-| `dem_relief.sources`    | ArcticDEM STAC queries, synthetic demo GeoTIFF   | `rasterio`, `DEMSquad_STAC` (STAC only) |
-| `dem_relief.derivatives`| Profile/planform curvature, hillshade            | none (numpy/scipy)       |
-| `dem_relief.blend`      | Soft light & luminosity blend modes              | none (numpy)             |
-| `dem_relief.stretch`    | Percentile / std-dev stretches, resampling       | none (numpy/scipy)       |
-| `dem_relief.plotting`   | 6-panel curvature + relief summary figure        | `matplotlib`             |
-| `dem_relief.basemap`    | Relief draped over basemap imagery               | `rasterio`, `contextily` |
-| `dem_relief.overlay`    | Burn a data raster onto relief via luminosity    | `rasterio`               |
-| `dem_relief.cli`        | Command-line entry point                         | -                         |
+| `TerraTexture.io`         | Load DEM rasters, merge multi-tile mosaics       | `rasterio`               |
+| `TerraTexture.sources`    | ArcticDEM STAC queries, synthetic demo GeoTIFF   | `rasterio`, `DEMSquad_STAC` (STAC only) |
+| `TerraTexture.derivatives`| Profile/planform curvature, hillshade            | none (numpy/scipy)       |
+| `TerraTexture.blend`      | Soft light & luminosity blend modes              | none (numpy)             |
+| `TerraTexture.stretch`    | Percentile / std-dev stretches, resampling       | none (numpy/scipy)       |
+| `TerraTexture.plotting`   | 6-panel curvature + relief summary figure        | `matplotlib`             |
+| `TerraTexture.basemap`    | Relief draped over basemap imagery               | `rasterio`, `contextily` |
+| `TerraTexture.overlay`    | Burn a data raster onto relief via luminosity    | `rasterio`               |
+| `TerraTexture.cli`        | Command-line entry point                         | -                         |
 
-`dem_relief.derivatives` and `dem_relief.blend` have zero geospatial
+`TerraTexture.derivatives` and `TerraTexture.blend` have zero geospatial
 dependencies by design -- they're the modules to target first for a
 Numba or Rust-accelerated implementation, since they're pure elementwise
 array math with no I/O.
@@ -135,7 +135,7 @@ Python (flake8, config in `pyproject.toml`'s `[tool.flake8]`):
 uv run flake8 src tests examples
 ```
 
-Rust (once `rust/dem_relief_rs` has real code beyond the stub):
+Rust (once `rust/TerraTexture_rs` has real code beyond the stub):
 
 ```bash
 cd rust

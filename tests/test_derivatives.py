@@ -1,6 +1,6 @@
 import numpy as np
 
-from dem_relief.derivatives import curvatures, hillshade
+from TerraTexture.derivatives import curvatures, hillshade
 
 
 def test_flat_dem_has_zero_curvature(flat_dem):

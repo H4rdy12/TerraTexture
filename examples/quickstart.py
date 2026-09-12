@@ -6,8 +6,8 @@ contextily) required beyond numpy/scipy/matplotlib.
     python examples/quickstart.py
 """
 
-from dem_relief.io import load_dem
-from dem_relief.plotting import plot_dem_curvature_softlight
+from TerraTexture.io import load_dem
+from TerraTexture.plotting import plot_dem_curvature_softlight
 
 if __name__ == "__main__":
     dem, cellsize = load_dem(None)  # synthetic demo DEM: hills + valley + noise
