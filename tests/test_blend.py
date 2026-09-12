@@ -1,6 +1,6 @@
 import numpy as np
 
-from TerraTexture.blend import soft_light, luminosity_blend, _lum
+from terra_texture.blend import soft_light, luminosity_blend, _lum
 
 
 def test_soft_light_output_in_unit_range():

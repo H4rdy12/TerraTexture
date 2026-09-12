@@ -4,7 +4,7 @@ soft-lit relief, and a final elevation+relief composite.
 
 Depends only on numpy/scipy/matplotlib -- no rasterio or contextily.
 Use this for offline curvature analysis on an in-memory DEM array; see
-TerraTexture.basemap for the version that drapes relief over real-world
+terra_texture.basemap for the version that drapes relief over real-world
 basemap imagery.
 """
 
@@ -63,7 +63,7 @@ def plot_dem_curvature_softlight(
     results : dict with keys 'profile', 'planform', 'hillshade',
         'soft_lit', 'composite' holding the intermediate arrays
     """
-    dem = np.asarray(dem, dtype=float)
+    dem = np.asarray(dem, dtype=np.float32)
 
     profile, planform = curvatures(dem, cellsize)
     hs = hillshade(dem, cellsize, azimuth=azimuth, altitude=altitude)
@@ -77,7 +77,10 @@ def plot_dem_curvature_softlight(
     lit = soft_light(hs, curv_signal)
 
     # final composite: elevation colour, lit by the soft-light-enhanced shading
-    elev_rgb = plt.get_cmap(elev_cmap)(normalize(dem))[:, :, :3]
+    # (plt.get_cmap()(...) always returns float64 RGBA regardless of input
+    # dtype -- cast down since 8-bit-display colour values don't need it,
+    # and leaving it would upcast the whole composite via soft_light() below)
+    elev_rgb = plt.get_cmap(elev_cmap)(normalize(dem))[:, :, :3].astype(np.float32)
     lit_rgb = np.repeat(lit[:, :, None], 3, axis=2)
     composite = soft_light(elev_rgb, lit_rgb)
 

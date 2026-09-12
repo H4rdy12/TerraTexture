@@ -150,11 +150,15 @@ def burn_data_onto_relief(
     )
 
     # -- colour-map the data --
+    # (cmap_obj(...) always returns float64 RGBA regardless of input dtype
+    # -- cast down before blending or it silently upcasts the whole
+    # composite via luminosity_blend() below, doubling memory on what's
+    # often the largest array in this pipeline)
     if norm is None:
         norm = Normalize(vmin=vmin, vmax=vmax)
     cmap_obj = plt.get_cmap(cmap)
     mappable = _cm.ScalarMappable(norm=norm, cmap=cmap_obj)
-    data_rgba = cmap_obj(norm(data_on_grid))  # (H, W, 4)
+    data_rgba = cmap_obj(norm(data_on_grid)).astype(np.float32)  # (H, W, 4)
     nan_mask = np.isnan(data_on_grid)
 
     # -- burn: data supplies hue/saturation, relief supplies luminance --

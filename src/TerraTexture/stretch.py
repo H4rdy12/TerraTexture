@@ -12,8 +12,15 @@ from .io import _fill_nan_nearest
 
 def normalize(arr, low=1, high=99):
     """Percentile-stretch an array to [0, 1] (robust to outliers). NaNs
-    (nodata) are ignored for the percentile calc and pass through as NaN."""
-    lo, hi = np.nanpercentile(arr, [low, high])
+    (nodata) are ignored for the percentile calc and pass through as NaN.
+
+    Preserves `arr`'s own dtype: `np.nanpercentile` always computes
+    internally in float64 and returns float64 scalars regardless of
+    input dtype, which would otherwise silently upcast a float32 input
+    to float64 in the subtraction below (unlike a plain Python float,
+    a numpy float64 scalar is NOT exempt from promotion under NEP 50)."""
+    arr = np.asarray(arr)
+    lo, hi = np.nanpercentile(arr, [low, high]).astype(arr.dtype)
     return np.clip((arr - lo) / (hi - lo + 1e-12), 0, 1)
 
 
@@ -31,11 +38,11 @@ def bilinear_resample(arr, target_shape):
     """Bilinear-resample a 2D array to `target_shape` (rows, cols), NaN-safe:
     nodata is nearest-filled before resampling and the (also-resampled)
     nodata mask is re-applied afterwards so voids don't bleed or vanish."""
-    arr = np.asarray(arr, dtype=float)
+    arr = np.asarray(arr, dtype=np.float32)
     filled, nan_mask = _fill_nan_nearest(arr)
     zy, zx = target_shape[0] / arr.shape[0], target_shape[1] / arr.shape[1]
     resampled = zoom(filled, (zy, zx), order=1)
     if nan_mask.any():
-        mask_resampled = zoom(nan_mask.astype(float), (zy, zx), order=0) > 0.5
+        mask_resampled = zoom(nan_mask.astype(np.float32), (zy, zx), order=0) > 0.5
         resampled = np.where(mask_resampled, np.nan, resampled)
     return resampled

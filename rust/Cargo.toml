@@ -5,7 +5,13 @@ edition = "2021"
 
 [lib]
 name = "terra_texture_rs"
-crate-type = ["cdylib"]
+# "cdylib" is what makes this importable from Python (via maturin).
+# "rlib" is added alongside it so `cargo bench`/`cargo test` can link
+# against the crate's pure-Rust functions directly, without going
+# through Python/PyO3 at all -- see benches/blend_bench.rs, which tunes
+# PARALLEL_THRESHOLD in src/lib.rs against real measurements instead of
+# a guessed constant.
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 pyo3 = { version = "0.22", features = ["extension-module"] }
@@ -13,10 +19,21 @@ numpy = "0.22"
 ndarray = { version = "0.16", features = ["rayon"] }
 rayon = "1"
 
+[dev-dependencies]
+criterion = "0.5"
+
+[[bench]]
+name = "blend_bench"
+harness = false
+
 # Build with `maturin develop` (from the rust/ directory, with a venv
-# active) to get an importable `terra_texture_rs` module. Not wired into
-# terra_texture.blend yet -- this crate is a starting point, not a finished
-# accelerated implementation. See README.md's package-layout table:
-# terra_texture.blend and terra_texture.derivatives are the pure-numpy modules
-# to target here, since they have zero geospatial dependencies and are
-# the actual elementwise-math hot path.
+# active) to get an importable `terra_texture_rs` module -- this is what
+# src/terra_texture/blend.py tries to import, falling back to pure numpy
+# if it's not built. See README.md's package-layout table:
+# terra_texture.blend and terra_texture.derivatives are the pure-numpy
+# modules targeted here, since they have zero geospatial dependencies
+# and are the actual elementwise-math hot path.
+#
+# Run `cargo bench` to tune PARALLEL_THRESHOLD in src/lib.rs -- it's
+# currently a provisional placeholder, not a measured value (see the
+# TODO comment next to its definition).

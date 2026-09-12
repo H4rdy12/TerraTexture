@@ -41,7 +41,7 @@ def curvatures(dem, cellsize):
     """Return (profile_curvature, planform_curvature) arrays, same shape as
     dem. NaN cells in `dem` (nodata/voids) are nearest-filled for the
     calculation and set back to NaN in the output."""
-    dem_filled, nan_mask = _fill_nan_nearest(np.asarray(dem, dtype=float))
+    dem_filled, nan_mask = _fill_nan_nearest(np.asarray(dem, dtype=np.float32))
 
     p, q, r, t, s = _derivatives(dem_filled, cellsize)
     p2q2 = p ** 2 + q ** 2
@@ -61,8 +61,12 @@ def curvatures(dem, cellsize):
 
 
 def hillshade(dem, cellsize, azimuth=315, altitude=45):
-    dem_filled, nan_mask = _fill_nan_nearest(np.asarray(dem, dtype=float))
-    az, alt = np.radians(360.0 - azimuth + 90), np.radians(altitude)
+    dem_filled, nan_mask = _fill_nan_nearest(np.asarray(dem, dtype=np.float32))
+    # np.radians() on a Python scalar always returns a *strong* float64
+    # numpy scalar (not a weak Python float) -- left uncast, it would
+    # silently upcast every float32 array it's later multiplied against.
+    az = np.float32(np.radians(360.0 - azimuth + 90))
+    alt = np.float32(np.radians(altitude))
     zy, zx = np.gradient(dem_filled, cellsize)
     slope = np.pi / 2 - np.arctan(np.hypot(zx, zy))
     aspect = np.arctan2(-zx, zy)
