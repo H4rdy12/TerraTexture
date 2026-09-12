@@ -3,6 +3,8 @@
 DEM curvature analysis and soft-light / luminosity-blended shaded relief
 visualization.
 
+![Code Quality](https://github.com/H4rdy12/TerraTexture/actions/workflows/checks.yml/badge.svg) <br>
+
 Computes **profile curvature** (rate of change of slope along the
 direction of steepest descent -- controls flow acceleration/deceleration)
 and **planform curvature** (curvature of contour lines, perpendicular to
