@@ -16,9 +16,7 @@
 
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use ndarray::Array2;
-use terra_texture_rs::{
-    luminosity_blend_parallel, luminosity_blend_serial, soft_light_parallel, soft_light_serial,
-};
+use terra_texture_rs::{luminosity_blend_parallel, luminosity_blend_serial, soft_light_parallel, soft_light_serial};
 
 // Chosen to bracket a wide range around the guessed 65_536-element
 // PARALLEL_THRESHOLD (side lengths 16..2048 -> 256 .. ~4.2M elements),

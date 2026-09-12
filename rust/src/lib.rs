@@ -63,12 +63,18 @@ fn soft_light_pixel(a: f32, b: f32) -> f32 {
 /// `PARALLEL_THRESHOLD` currently guesses. `soft_light_core()` below is
 /// the actual dispatch entry point everything else should call.
 pub fn soft_light_serial(a: ArrayView2<f32>, b: ArrayView2<f32>, out: &mut Array2<f32>) {
-    Zip::from(out).and(&a).and(&b).for_each(|o, &a, &b| *o = soft_light_pixel(a, b));
+    Zip::from(out)
+        .and(&a)
+        .and(&b)
+        .for_each(|o, &a, &b| *o = soft_light_pixel(a, b));
 }
 
 /// Parallel (rayon) soft light -- see `soft_light_serial`'s doc comment.
 pub fn soft_light_parallel(a: ArrayView2<f32>, b: ArrayView2<f32>, out: &mut Array2<f32>) {
-    Zip::from(out).and(&a).and(&b).par_for_each(|o, &a, &b| *o = soft_light_pixel(a, b));
+    Zip::from(out)
+        .and(&a)
+        .and(&b)
+        .par_for_each(|o, &a, &b| *o = soft_light_pixel(a, b));
 }
 
 /// Pure computation: Photoshop-style soft light blend. `base`/`blend`
@@ -106,7 +112,11 @@ fn luminosity_blend_pixel(r0: f32, g0: f32, b0: f32, target_lum: f32) -> (f32, f
     // low clip: uses the ORIGINAL n, applied to (r1, g1, b1)
     let (r2, g2, b2) = if n < 0.0 {
         let scale = l / (l - n + EPS);
-        (l + (r1 - l) * scale, l + (g1 - l) * scale, l + (b1 - l) * scale)
+        (
+            l + (r1 - l) * scale,
+            l + (g1 - l) * scale,
+            l + (b1 - l) * scale,
+        )
     } else {
         (r1, g1, b1)
     };
@@ -116,7 +126,11 @@ fn luminosity_blend_pixel(r0: f32, g0: f32, b0: f32, target_lum: f32) -> (f32, f
     // `rgb = np.where(...)` reassignment order exactly.
     let (r3, g3, b3) = if x > 1.0 {
         let scale = (1.0 - l) / (x - l + EPS);
-        (l + (r2 - l) * scale, l + (g2 - l) * scale, l + (b2 - l) * scale)
+        (
+            l + (r2 - l) * scale,
+            l + (g2 - l) * scale,
+            l + (b2 - l) * scale,
+        )
     } else {
         (r2, g2, b2)
     };
@@ -126,11 +140,7 @@ fn luminosity_blend_pixel(r0: f32, g0: f32, b0: f32, target_lum: f32) -> (f32, f
 
 /// Serial variant -- see `soft_light_serial`'s doc comment for why this
 /// is exposed publicly alongside `luminosity_blend_parallel`.
-pub fn luminosity_blend_serial(
-    backdrop_rgb: ArrayView3<f32>,
-    luminosity: ArrayView2<f32>,
-    out: &mut Array3<f32>,
-) {
+pub fn luminosity_blend_serial(backdrop_rgb: ArrayView3<f32>, luminosity: ArrayView2<f32>, out: &mut Array3<f32>) {
     Zip::from(out.outer_iter_mut())
         .and(backdrop_rgb.outer_iter())
         .and(luminosity.outer_iter())
@@ -138,11 +148,7 @@ pub fn luminosity_blend_serial(
 }
 
 /// Parallel (rayon) variant -- see `soft_light_serial`'s doc comment.
-pub fn luminosity_blend_parallel(
-    backdrop_rgb: ArrayView3<f32>,
-    luminosity: ArrayView2<f32>,
-    out: &mut Array3<f32>,
-) {
+pub fn luminosity_blend_parallel(backdrop_rgb: ArrayView3<f32>, luminosity: ArrayView2<f32>, out: &mut Array3<f32>) {
     Zip::from(out.outer_iter_mut())
         .and(backdrop_rgb.outer_iter())
         .and(luminosity.outer_iter())
@@ -175,11 +181,7 @@ fn luminosity_blend_row(
 /// arrays -- see the module docs above for the algebraic shortcut this
 /// enables over the two-function numpy version. Dispatches to the
 /// serial or parallel path based on `PARALLEL_THRESHOLD`.
-pub fn luminosity_blend_core(
-    backdrop_rgb: ArrayView3<f32>,
-    luminosity: ArrayView2<f32>,
-    out: &mut Array3<f32>,
-) {
+pub fn luminosity_blend_core(backdrop_rgb: ArrayView3<f32>, luminosity: ArrayView2<f32>, out: &mut Array3<f32>) {
     let (h, w, _) = backdrop_rgb.dim();
     if h * w >= PARALLEL_THRESHOLD {
         luminosity_blend_parallel(backdrop_rgb, luminosity, out);
