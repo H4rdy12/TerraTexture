@@ -1,4 +1,4 @@
-name: ci
+name: checks | Build, Test 
 
 # Runs on every push and PR. Branch protection on `main` requires the
 # `all-checks` job (see bottom of this file) to pass before a PR can be
