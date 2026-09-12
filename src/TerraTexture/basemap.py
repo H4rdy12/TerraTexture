@@ -1,0 +1,349 @@
+"""
+Drape DEM relief over real-world basemap imagery using the ArcGIS Pro /
+Photoshop "luminosity blend" recipe.
+
+Requires rasterio + contextily. Optionally requires DEMSquad_STAC if you
+use the `aoi_bounds=` ArcticDEM-STAC code path (see TerraTexture.sources).
+"""
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+from .io import _open_raster, load_dem_mosaic
+from .sources import ArcticDEM_stac
+from .derivatives import curvatures, hillshade
+from .blend import soft_light, luminosity_blend
+from .stretch import normalize, stretch_std
+
+
+def plot_dem_basemap_luminosity_relief(
+    dem_path=None,
+    aoi_bounds=None,
+    arcticdem_resolution=32,
+    demsquad_path="/media/luna/hardydj/Scripts/DEMSquad_stable",
+    source=None,
+    zoom="auto",
+    target_crs="EPSG:3413",
+    azimuth=315,
+    altitude=45,
+    curvature_std=4,
+    hillshade_std=4,
+    figsize=(10, 10),
+    out_png=None,
+    show=True,
+):
+    """Drape a DEM's relief over basemap imagery using the ArcGIS Pro /
+    Photoshop "luminosity blend" recipe, layer stack top -> bottom:
+
+        1. basemap imagery                          [Soft Light]
+        2. relief group                              [Luminosity]
+           - DEM elevation, white->black              (top of group)
+           - profile curvature (X) planform curvature,
+             +/-N-std stretch, soft-light blended       (middle)
+           - hillshade, +/-N-std stretch               (bottom of group)
+        3. basemap imagery                           [Normal, base]
+
+    Everything is computed and composited on ONE grid: the DEM's own,
+    in `target_crs` (default EPSG:3413, NSIDC Sea Ice Polar Stereographic
+    North -- ArcticDEM's native CRS). If the DEM is already in target_crs
+    (the normal case for ArcticDEM tiles) it is used completely unmodified,
+    at full native resolution -- no resampling loss. Only the basemap
+    imagery gets warped, from the tile source's native EPSG:3857 onto the
+    DEM's exact transform/shape/CRS, so every layer is pixel-for-pixel
+    aligned before any blending happens.
+
+    Within the group, each layer soft-lights onto the composite of
+    everything below it (hillshade is the base). The resulting single
+    greyscale "relief luminosity" raster then replaces only the *lightness*
+    of the basemap imagery via the SVG/Photoshop Luminosity blend mode
+    (luminosity_blend()) -- imagery hue & saturation are preserved exactly,
+    unlike a naive per-channel soft-light burn. A second copy of the
+    imagery is then soft-lit on top of that result to restore some of the
+    colour punch/contrast luminosity blending tends to flatten.
+
+    Parameters
+    ----------
+    dem_path : str, sequence of str, or None
+        Path to a georeferenced raster (GeoTIFF, or .tar.gz/.tgz archive
+        e.g. an ArcticDEM mosaic tile). Pass a list/tuple of two or more
+        paths to merge neighbouring tiles into one seamless mosaic first
+        (via load_dem_mosaic()) before computing relief. Provide EITHER
+        this OR aoi_bounds, not both.
+    aoi_bounds : tuple or None
+        (x_min, y_min, x_max, y_max) in target_crs. ADDITIONAL alternative
+        to dem_path: instead of a local file, query the ArcticDEM STAC
+        catalog for this AOI via ArcticDEM_stac() (same underlying
+        DEMSquad_STAC.Query_PGC_catalog call DEMTimeSeriesPlotter uses),
+        merge the intersecting strips/tiles, and use that as the DEM.
+        Requires DEMSquad_STAC to be importable (see demsquad_path).
+    arcticdem_resolution : int
+        ArcticDEM mosaic resolution in meters (e.g. 2, 10, 32). Only used
+        when aoi_bounds is given.
+    demsquad_path : str
+        sys.path entry for importing DEMSquad_STAC. Only used when
+        aoi_bounds is given.
+    source : contextily provider or None
+        Tile source, default contextily.providers.Esri.WorldImagery.
+    zoom : int or "auto"
+        Tile zoom level for the *source* imagery fetch (before it gets
+        warped onto the DEM grid).
+    target_crs : str
+        CRS everything is composited in. Defaults to the DEM's own native
+        CRS for ArcticDEM (EPSG:3413); change only if you need a different
+        common CRS for some other DEM source.
+    azimuth, altitude : float
+        Sun position (degrees) for the hillshade.
+    curvature_std, hillshade_std : float
+        N for the mean +/- N*std stretch applied to curvature and
+        hillshade respectively (ArcGIS Pro's "stretched N standard
+        deviations" symbology).
+    figsize : tuple
+    out_png : str or None
+    show : bool
+
+    Returns
+    -------
+    fig, ax : matplotlib Figure/Axes
+    layers : dict with 'basemap', 'dem_grey', 'curvature', 'hillshade',
+        'relief_luminosity', 'luminosity_composite', 'final' arrays, for
+        inspecting or re-blending any individual stage.
+    """
+    import rasterio
+    from rasterio.warp import calculate_default_transform, reproject, Resampling, transform_bounds
+    from rasterio.transform import array_bounds, from_bounds
+    import contextily as ctx
+
+    if source is None:
+        source = ctx.providers.Esri.WorldImagery
+
+    if dem_path is None and aoi_bounds is None:
+        raise ValueError(
+            "Provide either dem_path (file/.tar.gz/list of tiles) or "
+            "aoi_bounds (to query ArcticDEM_stac() for that AOI)."
+        )
+
+    # -- open the DEM (path, mosaic list, or ArcticDEM STAC AOI query);
+    #    only reproject if it isn't already in target_crs --
+    if aoi_bounds is not None:
+        dem, cellsize, transform, mosaic_crs = ArcticDEM_stac(
+            aoi_bounds,
+            resolution=arcticdem_resolution,
+            aoi_crs=target_crs,
+            demsquad_path=demsquad_path,
+        )
+        height, width = dem.shape
+        target_crs = str(mosaic_crs)
+    elif isinstance(dem_path, (list, tuple)):
+        dem, cellsize, transform, mosaic_crs = load_dem_mosaic(dem_path, target_crs=target_crs)
+        height, width = dem.shape
+        if str(mosaic_crs).upper() != target_crs.upper():
+            # load_dem_mosaic warped everything into mosaic_crs already;
+            # honour whatever CRS it actually merged into
+            target_crs = str(mosaic_crs)
+    else:
+        with _open_raster(dem_path) as src:
+            if src.crs is not None and str(src.crs).upper() == target_crs.upper():
+                dem = src.read(1).astype(np.float32)
+                transform, width, height = src.transform, src.width, src.height
+                if src.nodata is not None:
+                    dem = np.where(dem == src.nodata, np.nan, dem)
+            else:
+                transform, width, height = calculate_default_transform(
+                    src.crs, target_crs, src.width, src.height, *src.bounds
+                )
+                dem = np.full((height, width), np.nan, dtype=np.float32)
+                reproject(
+                    source=rasterio.band(src, 1),
+                    destination=dem,
+                    src_transform=src.transform,
+                    src_crs=src.crs,
+                    dst_transform=transform,
+                    dst_crs=target_crs,
+                    src_nodata=src.nodata,
+                    dst_nodata=np.nan,
+                    resampling=Resampling.bilinear,
+                )
+    cellsize = transform.a
+    west, south, east, north = array_bounds(height, width, transform)
+
+    # -- relief components, computed at the DEM's own native resolution --
+    profile, planform = curvatures(dem, cellsize)
+    hs = hillshade(dem, cellsize, azimuth=azimuth, altitude=altitude)
+
+    profile_grey = stretch_std(profile, curvature_std)
+    planform_grey = stretch_std(planform, curvature_std)
+    hs_grey = stretch_std(hs, hillshade_std)
+    dem_grey = normalize(dem)  # white->black elevation
+
+    # -- group stack, bottom to top, each soft-lighting onto the composite below --
+    curvature_combo = soft_light(profile_grey, planform_grey)      # profile (X) planform
+    group_composite = soft_light(hs_grey, curvature_combo)          # curvature over hillshade
+    relief_luminosity = soft_light(group_composite, dem_grey)       # DEM over that -> final grey
+
+    # texture-only luminosity (hillshade + curvature, no elevation): centred and
+    # locally-varying, without the broad monotonic darkening dem_grey imposes
+    # across low-elevation terrain -- exposed separately for burn_data_onto_relief
+    # so a burned data layer can show topographic texture without elevation
+    # crushing its colour at low elevation (see 'texture_luminosity' in layers)
+    texture_luminosity = np.nan_to_num(group_composite, nan=0.5)
+
+    # NaNs (nodata/voids) shouldn't distort the blend maths; treat as neutral mid-grey
+    relief_luminosity = np.nan_to_num(relief_luminosity, nan=0.5)
+
+    # -- fetch basemap imagery (tile servers always serve EPSG:3857) then
+    #    warp it onto the DEM's exact grid: same transform/shape/target_crs
+    #    as everything else, so nothing needs resampling downstream --
+    lon_west, lat_south, lon_east, lat_north = transform_bounds(
+        target_crs, "EPSG:4326", west, south, east, north
+    )
+    basemap_3857, extent_3857 = ctx.bounds2img(
+        lon_west, lat_south, lon_east, lat_north, zoom=zoom, source=source, ll=True
+    )
+    bm_west, bm_east, bm_south, bm_north = extent_3857
+    bm_transform = from_bounds(
+        bm_west, bm_south, bm_east, bm_north, basemap_3857.shape[1], basemap_3857.shape[0]
+    )
+
+    basemap_rgb = np.empty((height, width, 3), dtype=np.float32)
+    for b in range(3):
+        band_dst = np.empty((height, width), dtype=np.float32)
+        reproject(
+            source=basemap_3857[:, :, b].astype(np.float32),
+            destination=band_dst,
+            src_transform=bm_transform,
+            src_crs="EPSG:3857",
+            dst_transform=transform,
+            dst_crs=target_crs,
+            resampling=Resampling.bilinear,
+        )
+        basemap_rgb[:, :, b] = band_dst
+    basemap_rgb = np.clip(basemap_rgb / 255.0, 0, 1)
+
+    # -- group's own blend mode against the basemap below it: Luminosity --
+    luminosity_composite = luminosity_blend(basemap_rgb, relief_luminosity)
+
+    # -- topmost layer: imagery again, Soft Light, to restore colour punch --
+    final = soft_light(luminosity_composite, basemap_rgb)
+
+    fig, ax = plt.subplots(figsize=figsize)
+    ax.imshow(final, extent=(west, east, south, north))
+    ax.set_xticks([])
+    ax.set_yticks([])
+    attribution = getattr(source, "attribution", "")
+    if attribution:
+        ax.text(
+            0.01, 0.01, attribution, transform=ax.transAxes,
+            fontsize=6, color="white", ha="left", va="bottom",
+            bbox=dict(facecolor="black", alpha=0.5, pad=1, linewidth=0),
+        )
+    plt.tight_layout()
+
+    if out_png:
+        plt.savefig(out_png, dpi=150)
+        print(f"Saved figure to {out_png}")
+    if show:
+        plt.show()
+
+    layers = {
+        "basemap": basemap_rgb,
+        "dem_grey": dem_grey,
+        "curvature": curvature_combo,
+        "hillshade": hs_grey,
+        "relief_luminosity": relief_luminosity,
+        "texture_luminosity": texture_luminosity,
+        "luminosity_composite": luminosity_composite,
+        "final": final,
+        "extent": (west, east, south, north),
+        "transform": transform,
+        "crs": target_crs,
+        "shape": (height, width),
+    }
+    return fig, ax, layers
+
+
+def add_relief_basemap(
+    axes,
+    dem_path=None,
+    aoi_bounds=None,
+    arcticdem_resolution=32,
+    demsquad_path="/media/luna/hardydj/Scripts/DEMSquad_stable",
+    source=None,
+    zoom="auto",
+    target_crs="EPSG:3413",
+    azimuth=315,
+    altitude=45,
+    curvature_std=4,
+    hillshade_std=4,
+    zorder=0,
+):
+    """Build the luminosity-blended relief basemap ONCE, then stamp the
+    same image onto one or more existing matplotlib Axes as a background
+    layer -- for dropping the relief into just the spatial panels of a
+    larger multi-axes figure (e.g. a plt.subplot_mosaic layout) without
+    re-querying ArcticDEM/imagery per panel and without creating its own
+    standalone figure.
+
+    Typical use: call this BEFORE your other per-axis plotting calls (e.g.
+    DEMTimeSeriesPlotter.add_slope_map / add_altimetry_interpolated with
+    add_basemap=False), so the relief sits underneath. The image is drawn
+    at `zorder` (default 0, i.e. bottom); anything you plot afterwards on
+    the same axes with the default zorder (~1+) will appear on top of it.
+    Since dhdt layers are typically opaque pcolormeshes, you'll usually
+    want to set some transparency on them afterwards so the relief shows
+    through -- e.g.:
+
+        for coll in ax.collections:
+            coll.set_alpha(0.75)
+
+    Parameters
+    ----------
+    axes : matplotlib.axes.Axes or sequence of Axes
+        Axis (or axes) to draw the relief background on.
+    dem_path, aoi_bounds, arcticdem_resolution, demsquad_path, source,
+    zoom, target_crs, azimuth, altitude, curvature_std, hillshade_std :
+        Same as plot_dem_basemap_luminosity_relief(); provide dem_path OR
+        aoi_bounds, not both.
+    zorder : float
+        Drawing order for the relief image. Default 0 (background).
+
+    Returns
+    -------
+    layers : dict
+        Same dict plot_dem_basemap_luminosity_relief() returns (including
+        'extent'), in case you want to reuse the relief array or bounds
+        elsewhere (e.g. to align a dh/dt overlay's axis limits).
+
+    Example
+    -------
+    >>> spatial_axes = [axs['DEM dhdt'], axs['Altim dhdt'],
+    ...                 axs['DEM dhdt IS2'], axs['Altim dhdt IS2']]
+    >>> add_relief_basemap(spatial_axes, aoi_bounds=plotter.bounds)
+    >>> plotter.add_slope_map(axs['DEM dhdt'], vmin=-6, vmax=6,
+    ...                        add_basemap=False)
+    >>> for coll in axs['DEM dhdt'].collections:
+    ...     coll.set_alpha(0.75)
+    """
+    if isinstance(axes, plt.Axes):
+        axes = [axes]
+
+    _fig, _ax, layers = plot_dem_basemap_luminosity_relief(
+        dem_path=dem_path,
+        aoi_bounds=aoi_bounds,
+        arcticdem_resolution=arcticdem_resolution,
+        demsquad_path=demsquad_path,
+        source=source,
+        zoom=zoom,
+        target_crs=target_crs,
+        azimuth=azimuth,
+        altitude=altitude,
+        curvature_std=curvature_std,
+        hillshade_std=hillshade_std,
+        out_png=None,
+        show=False,
+    )
+    plt.close(_fig)  # throwaway standalone figure -- only the arrays matter here
+
+    for ax in axes:
+        ax.imshow(layers["final"], extent=layers["extent"], zorder=zorder)
+
+    return layers
