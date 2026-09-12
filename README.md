@@ -1,7 +1,8 @@
 # TerraTexture
 
-DEM curvature analysis and soft-light / luminosity-blended shaded relief
-visualization.
+Tool to generate textured basemaps using open source DEMs and basemap imagery from Contextily.
+
+Texture is derived from DEM curvature and used visualised using  soft-light / luminosity-blended techniques.
 
 ![Code Quality](https://github.com/H4rdy12/TerraTexture/actions/workflows/checks.yml/badge.svg) <br>
 
