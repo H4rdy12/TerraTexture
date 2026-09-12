@@ -9,11 +9,11 @@
 //! This single `soft_light` kernel is meant as a template for also
 //! porting `luminosity_blend`/`_clip_color` and the curvature formula in
 //! `derivatives.py`, which are the other pure-elementwise hot paths.
- 
+
 use ndarray::Zip;
 use numpy::{IntoPyArray, PyArray2, PyReadonlyArray2};
 use pyo3::prelude::*;
- 
+
 #[pyfunction]
 fn soft_light<'py>(
     py: Python<'py>,
@@ -23,7 +23,7 @@ fn soft_light<'py>(
     let a = base.as_array();
     let b = blend.as_array();
     let mut out = ndarray::Array2::<f32>::zeros(a.raw_dim());
- 
+
     Zip::from(&mut out)
         .and(&a)
         .and(&b)
@@ -35,10 +35,10 @@ fn soft_light<'py>(
             };
             *o = o.clamp(0.0, 1.0);
         });
- 
+
     out.into_pyarray_bound(py)
 }
- 
+
 #[pymodule]
 fn terra_texture_rs(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(soft_light, m)?)?;

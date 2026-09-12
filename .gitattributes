@@ -1,0 +1,20 @@
+# Normalize line endings to LF for all text files, regardless of the
+# committer's OS or editor settings (this is what was causing rogue \r
+# characters to show up on blank lines in rust/src/lib.rs and trip
+# `cargo fmt --check` even though the file looked identical on screen).
+* text=auto eol=lf
+
+*.rs text eol=lf
+*.py text eol=lf
+*.toml text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.sh text eol=lf
+*.json text eol=lf
+
+# Lockfiles and binaries: leave alone.
+uv.lock -text
+*.png binary
+*.tif binary
+*.tar.gz binary
