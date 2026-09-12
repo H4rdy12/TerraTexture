@@ -43,11 +43,11 @@ dev = [
 ]
 
 [project.scripts]
-dem-relief = "TerraTexture.cli:main"
+TerraTexture = "TerraTexture.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/yourname/dem-relief"
-Issues = "https://github.com/yourname/dem-relief/issues"
+Homepage = "https://github.com/H4rdy12/TerraTexture"
+Issues = "https://github.com/H4rdy12/TerraTexture/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]
