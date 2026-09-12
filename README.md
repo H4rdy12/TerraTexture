@@ -202,10 +202,23 @@ fig, ax, layers = plot_dem_basemap_luminosity_relief(
     out_png="relief.png",
 )
 
-# or, without any local file, straight from PGC's public STAC API:
+# or, without any local file, straight from PGC's public STAC API --
+# aoi_bounds defaults to plain lon/lat (EPSG:4326):
 fig, ax, layers = plot_dem_basemap_luminosity_relief(
-    aoi_bounds=(-200000, -2300000, 0, -2100000),
+    aoi_bounds=(-45, 68, -43, 69),   # lon/lat, covers part of Greenland
     dem_product="arcticdem",   # or "rema" for Antarctica
+    arcticdem_resolution=32,
+    out_png="relief.png",
+)
+
+# aoi_bounds_crs and target_crs are independent -- pass bounds in
+# whatever CRS you already have them in, get the DEM back in whatever
+# CRS you want, regardless of whether those two match:
+fig, ax, layers = plot_dem_basemap_luminosity_relief(
+    aoi_bounds=(-200000, -2300000, 0, -2100000),  # already in EPSG:3413
+    aoi_bounds_crs="EPSG:3413",
+    target_crs="EPSG:3413",
+    dem_product="arcticdem",
     arcticdem_resolution=32,
     out_png="relief.png",
 )
