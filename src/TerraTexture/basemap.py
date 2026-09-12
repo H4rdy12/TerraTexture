@@ -25,6 +25,7 @@ _AOI_PRODUCTS = {
 def plot_dem_basemap_luminosity_relief(
     dem_path=None,
     aoi_bounds=None,
+    aoi_bounds_crs="EPSG:4326",
     dem_product="arcticdem",
     arcticdem_resolution=32,
     source=None,
@@ -76,11 +77,21 @@ def plot_dem_basemap_luminosity_relief(
         (via load_dem_mosaic()) before computing relief. Provide EITHER
         this OR aoi_bounds, not both.
     aoi_bounds : tuple or None
-        (x_min, y_min, x_max, y_max) in target_crs. ADDITIONAL alternative
-        to dem_path: instead of a local file, query PGC's public STAC API
-        (https://stac.pgc.umn.edu/api/v1) for mosaic tiles intersecting
-        this AOI, merge them, and use that as the DEM. No signup, API
-        key, or local software required -- see TerraTexture.sources.
+        (x_min, y_min, x_max, y_max) in `aoi_bounds_crs`. ADDITIONAL
+        alternative to dem_path: instead of a local file, query PGC's
+        public STAC API (https://stac.pgc.umn.edu/api/v1) for mosaic
+        tiles intersecting this AOI, merge them, and use that as the
+        DEM. No signup, API key, or local software required -- see
+        TerraTexture.sources.
+    aoi_bounds_crs : str
+        CRS of `aoi_bounds`. Defaults to EPSG:4326 (plain lon/lat) --
+        the natural way most people already have a bounding box, e.g.
+        from a GPS device or a web map. Independent of `target_crs`:
+        you can hand this lon/lat bounds while still getting the merged
+        DEM back in ArcticDEM/REMA's native polar-stereographic CRS (or
+        any other `target_crs` you choose) -- the two used to be forced
+        to match, which meant lon/lat bounds couldn't be used at all
+        unless you reprojected them yourself first.
     dem_product : {"arcticdem", "rema"}
         Which PGC dataset to query when aoi_bounds is given. "arcticdem"
         covers the Arctic (including Greenland); "rema" covers
@@ -147,7 +158,7 @@ def plot_dem_basemap_luminosity_relief(
         dem, cellsize, transform, mosaic_crs = fetch_mosaic(
             aoi_bounds,
             resolution=arcticdem_resolution,
-            bbox_crs=target_crs,
+            bbox_crs=aoi_bounds_crs,
             target_crs=target_crs,
         )
         height, width = dem.shape
@@ -284,6 +295,7 @@ def add_relief_basemap(
     axes,
     dem_path=None,
     aoi_bounds=None,
+    aoi_bounds_crs="EPSG:4326",
     dem_product="arcticdem",
     arcticdem_resolution=32,
     source=None,
@@ -316,8 +328,8 @@ def add_relief_basemap(
     ----------
     axes : matplotlib.axes.Axes or sequence of Axes
         Axis (or axes) to draw the relief background on.
-    dem_path, aoi_bounds, dem_product, arcticdem_resolution, source,
-    zoom, target_crs, azimuth, altitude, curvature_std, hillshade_std :
+    dem_path, aoi_bounds, aoi_bounds_crs, dem_product, arcticdem_resolution,
+    source, zoom, target_crs, azimuth, altitude, curvature_std, hillshade_std :
         Same as plot_dem_basemap_luminosity_relief(); provide dem_path OR
         aoi_bounds, not both.
     zorder : float
@@ -341,6 +353,7 @@ def add_relief_basemap(
     _fig, _ax, layers = plot_dem_basemap_luminosity_relief(
         dem_path=dem_path,
         aoi_bounds=aoi_bounds,
+        aoi_bounds_crs=aoi_bounds_crs,
         dem_product=dem_product,
         arcticdem_resolution=arcticdem_resolution,
         source=source,

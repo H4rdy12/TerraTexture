@@ -63,6 +63,13 @@ def main(argv=None):
     ot_fetch.add_argument("min_lat", type=float)
     ot_fetch.add_argument("max_lon", type=float)
     ot_fetch.add_argument("max_lat", type=float)
+    ot_fetch.add_argument(
+        "--bbox-crs", default="EPSG:4326",
+        help="CRS of the four bounds above (default: EPSG:4326, i.e. plain lon/lat as the "
+             "argument names suggest). Override if you're passing bounds in some other CRS "
+             "-- the min_lon/min_lat/etc. names stop being literally accurate at that point, "
+             "they just mean 'first pair of coordinates, second pair of coordinates'.",
+    )
     ot_fetch.add_argument("--asset-key", default="data", help="Item asset holding the DEM (default: 'data').")
     ot_fetch.add_argument(
         "--out", dest="out_tif", default="opentopography_dem.tif",
@@ -108,7 +115,8 @@ def main(argv=None):
 
             bounds = (args.min_lon, args.min_lat, args.max_lon, args.max_lat)
             dem, cellsize, transform, crs = opentopography_mosaic(
-                args.collection, bounds, asset_key=args.asset_key, max_items=args.max_items,
+                args.collection, bounds, bbox_crs=args.bbox_crs,
+                asset_key=args.asset_key, max_items=args.max_items,
             )
             with rasterio.open(
                 args.out_tif, "w", driver="GTiff", height=dem.shape[0], width=dem.shape[1],
