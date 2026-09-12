@@ -15,5 +15,8 @@
 
 # Core science modules -- curvature formulas and blend math are the
 # most correctness-sensitive part of the codebase.
-/src/dem_relief/derivatives.py   @H4rdy12
-/src/dem_relief/blend.py         @H4rdy12
+/src/terra_texture/derivatives.py   @H4rdy12
+/src/terra_texture/blend.py         @H4rdy12
+
+# Rust extension crate.
+/rust/                     @H4rdy12
