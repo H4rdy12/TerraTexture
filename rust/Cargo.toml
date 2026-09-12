@@ -1,10 +1,10 @@
 [package]
-name = "TerraTexture_rs"
+name = "terra_texture_rs"
 version = "0.1.0"
 edition = "2021"
 
 [lib]
-name = "TerraTexture_rs"
+name = "terra_texture_rs"
 crate-type = ["cdylib"]
 
 [dependencies]
@@ -14,9 +14,9 @@ ndarray = { version = "0.16", features = ["rayon"] }
 rayon = "1"
 
 # Build with `maturin develop` (from the rust/ directory, with a venv
-# active) to get an importable `dem_relief_rs` module. Not wired into
-# dem_relief.blend yet -- this crate is a starting point, not a finished
+# active) to get an importable `terra_texture_rs` module. Not wired into
+# terra_texture.blend yet -- this crate is a starting point, not a finished
 # accelerated implementation. See README.md's package-layout table:
-# dem_relief.blend and dem_relief.derivatives are the pure-numpy modules
+# terra_texture.blend and terra_texture.derivatives are the pure-numpy modules
 # to target here, since they have zero geospatial dependencies and are
 # the actual elementwise-math hot path.
