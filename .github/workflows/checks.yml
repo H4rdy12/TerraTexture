@@ -125,26 +125,28 @@ jobs:
   # TEST
   # ---------------------------------------------------------------------
   test-python:
-    # core deps + rasterio, managed by uv -- tests/test_io.py exercises
-    # the raster-dependent paths; everything else runs regardless.
+    # core deps + rasterio + contextily, managed by uv -- tests/test_io.py
+    # exercises the raster-dependent paths, tests/test_basemap.py the
+    # contextily-dependent ones (both self-skip via pytest.importorskip
+    # if their extra isn't synced; everything else runs regardless).
     runs-on: ubuntu-latest
     strategy:
       matrix:
         python-version: ["3.10", "3.11", "3.12"]
     steps:
       - uses: actions/checkout@v4
-
+  
       - name: Install uv
         uses: astral-sh/setup-uv@v3
         with:
           enable-cache: true
-
+  
       - name: Set up Python ${{ matrix.python-version }}
         run: uv python install ${{ matrix.python-version }}
-
-      - name: Sync environment (dev + raster extras)
-        run: uv sync --group dev --extra raster --python ${{ matrix.python-version }}
-
+  
+      - name: Sync environment (dev + raster + basemap extras)
+        run: uv sync --group dev --extra raster --extra basemap --python ${{ matrix.python-version }}
+  
       - name: Run tests
         run: uv run pytest -v
 
