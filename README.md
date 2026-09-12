@@ -103,6 +103,16 @@ Greenland) and REMA (Antarctica) as a fully dynamic, public STAC API at
 `arcticdem_mosaic()`/`rema_mosaic()` wrap it with the right collection
 naming for each product's mosaic resolutions (2m/10m/32m):
 
+#### Data attribution
+
+ArcticDEM and REMA are published by PGC under **CC BY 4.0** with a
+required [acknowledgement policy](https://www.pgc.umn.edu/guides/user-services/acknowledgement-policy/)
+— if you use real data fetched via `arcticdem_mosaic()`/`rema_mosaic()`
+in a publication, report, or map, you must cite PGC per their policy,
+not just this tool. OpenTopography datasets carry their own per-collection
+licensing and citation requirements (visible in each collection's STAC
+metadata via `describe_stac_collection()`) — check before publishing
+results derived from `opentopography_mosaic()`.
 ```python
 from terra_texture.sources import arcticdem_mosaic, rema_mosaic
 
