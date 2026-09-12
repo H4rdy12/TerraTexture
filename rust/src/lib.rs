@@ -112,11 +112,7 @@ fn luminosity_blend_pixel(r0: f32, g0: f32, b0: f32, target_lum: f32) -> (f32, f
     // low clip: uses the ORIGINAL n, applied to (r1, g1, b1)
     let (r2, g2, b2) = if n < 0.0 {
         let scale = l / (l - n + EPS);
-        (
-            l + (r1 - l) * scale,
-            l + (g1 - l) * scale,
-            l + (b1 - l) * scale,
-        )
+        (l + (r1 - l) * scale, l + (g1 - l) * scale, l + (b1 - l) * scale)
     } else {
         (r1, g1, b1)
     };
@@ -126,11 +122,7 @@ fn luminosity_blend_pixel(r0: f32, g0: f32, b0: f32, target_lum: f32) -> (f32, f
     // `rgb = np.where(...)` reassignment order exactly.
     let (r3, g3, b3) = if x > 1.0 {
         let scale = (1.0 - l) / (x - l + EPS);
-        (
-            l + (r2 - l) * scale,
-            l + (g2 - l) * scale,
-            l + (b2 - l) * scale,
-        )
+        (l + (r2 - l) * scale, l + (g2 - l) * scale, l + (b2 - l) * scale)
     } else {
         (r2, g2, b2)
     };
