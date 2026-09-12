@@ -6,7 +6,7 @@ imagery from Contextily.
 Texture is derived from DEM curvature and visualised using soft-light /
 luminosity-blended techniques.
 
-![Code Quality](https://github.com/H4rdy12/TerraTexture/actions/workflows/ci.yml/badge.svg)
+![Code Quality](https://github.com/H4rdy12/TerraTexture/actions/workflows/checks.yml/badge.svg)
 
 Computes **profile curvature** (rate of change of slope along the
 direction of steepest descent -- controls flow acceleration/deceleration)
