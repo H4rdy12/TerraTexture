@@ -204,7 +204,48 @@ fig, ax, layers = plot_dem_basemap_luminosity_relief(
 See `examples/arcticdem_basemap.py` for a runnable version (pass `--dem`
 or set `TERRA_TEXTURE_DEMO_TILE`).
  
-## Burning scientific data onto relief [Experimental]
+### Customizing the basemap and hillshade
+ 
+`source`, `zoom`, `azimuth`, and `altitude` are ordinary keyword
+arguments passed straight through to `contextily.bounds2img()` and the
+hillshade calculation respectively -- nothing is hardcoded:
+ 
+```python
+import contextily as ctx
+ 
+fig, ax, layers = plot_dem_basemap_luminosity_relief(
+    dem_path="path/to/dem.tif",
+    source=ctx.providers.Esri.WorldShadedRelief,  # any contextily/xyzservices provider
+    zoom=12,                                       # int, or "auto" (default)
+    azimuth=225,                                   # sun direction, degrees (default 315 = NW)
+    altitude=30,                                   # sun elevation, degrees (default 45)
+    out_png="relief.png",
+)
+```
+ 
+`contextily.providers` has dozens of options nested by family
+(`ctx.providers.<Family>.<Variant>`), and some require a personal API
+key you'd have to supply yourself (their placeholder value is literally
+`"<insert your API key here>"` until you do — including, as of writing,
+all of CartoDB's variants). These work with no key or signup at all:
+ 
+| Provider | Style |
+|---|---|
+| `Esri.WorldImagery` (default) | Satellite/aerial |
+| `Esri.WorldTopoMap` | Topographic |
+| `Esri.WorldShadedRelief` | Plain relief shading, no imagery |
+| `Esri.WorldTerrain` | Terrain with labels |
+| `Esri.NatGeoWorldMap` | National Geographic style |
+| `Esri.OceanBasemap` | Bathymetry-focused |
+| `OpenStreetMap.Mapnik` | Standard OSM |
+| `OpenTopoMap` | Contour-line topographic |
+ 
+Stadia, Thunderforest, MapBox, MapTiler, and Jawg all require your own
+API key (set via the provider object, e.g.
+`ctx.providers.Stadia.AlidadeSmooth(api_key="...")`) before they'll
+return real tiles.
+ 
+## Burning scientific data onto relief
  
 ```python
 from terra_texture.basemap import add_relief_basemap
