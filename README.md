@@ -285,38 +285,7 @@ GitHub's settings every time a job is added, renamed, or removed here.
 `.github/workflows/build-wheels.yml` is a separate, currently-disabled
 workflow for building/publishing Rust extension wheels on version tags,
 once `rust/terra_texture_rs` has real kernels in it.
- 
-## Branch protection
- 
-GitHub repo settings, not something a workflow file can enforce, so
-this isn't automatic just by adding `ci.yml` -- it has to be configured
-once on the repo itself:
- 
-```bash
-./scripts/setup-branch-protection.sh H4rdy12/TerraTexture
-```
- 
-This requires the [GitHub CLI](https://cli.github.com/) (`gh auth
-login` first) and admin rights on the repo. It configures `main` so
-that:
- 
-- direct pushes are blocked -- all changes go through a PR
-- the `all-checks` CI job must pass before merging
-- at least 1 approving review is required, dismissed on new commits
-- [`CODEOWNERS`](.github/CODEOWNERS) review is required for matched paths
-- the branch must be up to date with `main` before merging
-- force-pushes and branch deletion are blocked
-`all-checks` won't be selectable as a required check until CI has run
-at least once against `main` -- push the repo, open one PR to trigger
-the workflow, then run the script (or re-run it if GitHub didn't pick
-up the context the first time).
- 
-Prefer the UI instead? Settings → Branches → Add branch protection rule
-→ `main`, and tick the equivalent boxes by hand; the script above is
-just a faster, repeatable way to do the same thing.
- 
-[`.github/CODEOWNERS`](.github/CODEOWNERS) is already set to `@H4rdy12`
-— update it if that changes (e.g. adding more maintainers).
+
  
 ## Background
  
