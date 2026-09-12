@@ -204,7 +204,7 @@ fig, ax, layers = plot_dem_basemap_luminosity_relief(
 See `examples/arcticdem_basemap.py` for a runnable version (pass `--dem`
 or set `TERRA_TEXTURE_DEMO_TILE`).
  
-## Burning scientific data onto relief
+## Burning scientific data onto relief [Experimental]
  
 ```python
 from terra_texture.basemap import add_relief_basemap
