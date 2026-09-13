@@ -7,11 +7,59 @@ DEMSquad_STAC. Import this module on its own if all you need is to load
 a DEM.
 """
 
+import os
 import tarfile
 from contextlib import contextmanager
+from concurrent.futures import ThreadPoolExecutor
+from rasterio.warp import transform_bounds
 
 import numpy as np
 from scipy.ndimage import gaussian_filter, distance_transform_edt
+
+
+def _fix_proj_env():
+    """Defensively point PROJ at rasterio's own bundled database, rather
+    than whatever a conda installation's PROJ_LIB may have set globally.
+ 
+    Common failure mode this works around: conda's base environment
+    auto-activates in every new shell and exports something like
+    PROJ_LIB=/opt/anaconda3/share/proj into the process environment --
+    regardless of which venv is actually active -- causing rasterio's
+    CRS lookups to fail with a cryptic "lacks DATABASE.LAYOUT.VERSION.
+    MAJOR / MINOR metadata. It comes from another PROJ installation."
+    error, even though nothing about this package or its dependencies is
+    actually broken. Running this once at import time means the fix
+    applies automatically for every user, rather than requiring each
+    person to debug their own machine's conda configuration or manually
+    set environment variables in every notebook/kernel.
+ 
+    Ordering here is load-bearing: rasterio's bundled GDAL/PROJ appears
+    to read PROJ_LIB/PROJ_DATA once, at C-extension load time, and
+    caches that decision -- setting the env var *after* `import rasterio`
+    has already run does NOT fix a bad inherited PROJ_LIB (verified
+    experimentally; only setting it before rasterio's compiled extension
+    is actually loaded works). So this locates rasterio's install path
+    via `importlib.util.find_spec()`, which does NOT execute/import the
+    module, fixes the environment, and only *then* lets rasterio import
+    normally wherever it's needed next.
+ 
+    No-ops silently if rasterio isn't installed (core-only install) or
+    if rasterio's own proj_data directory can't be found for any reason
+    -- this is a best-effort fix, not a hard requirement.
+    """
+    import importlib.util
+ 
+    spec = importlib.util.find_spec("rasterio")
+    if spec is None or spec.origin is None:
+        return  # rasterio not installed -- nothing to fix
+ 
+    proj_data = os.path.join(os.path.dirname(spec.origin), "proj_data")
+    if os.path.isdir(proj_data):
+        os.environ["PROJ_DATA"] = proj_data
+        os.environ.pop("PROJ_LIB", None)
+ 
+ 
+_fix_proj_env()
 
 
 @contextmanager
@@ -50,7 +98,37 @@ def _open_raster(path):
             yield src
 
 
-def load_dem_mosaic(paths, target_crs=None):
+def _open_raster_sync(path):
+    """Same logic as `_open_raster()`, but returns the opened dataset
+    directly instead of as a context manager -- lets `load_dem_mosaic()`
+    open multiple tiles concurrently via a thread pool..."""
+    import rasterio
+
+    if str(path).endswith((".tar.gz", ".tgz")):
+        from rasterio.io import MemoryFile
+        with tarfile.open(path, "r:gz") as tar:
+            members = tar.getmembers()
+            tif_member = next(
+                (m for m in members if m.name.lower().endswith("dem.tif")), None
+            )
+            if tif_member is None:
+                tif_member = next(
+                    (m for m in members if m.name.lower().endswith((".tif", ".tiff"))),
+                    None,
+                )
+            if tif_member is None:
+                raise ValueError(f"No TIFF file found inside archive {path}")
+            with tar.extractfile(tif_member) as f:
+                data = f.read()
+        memfile = MemoryFile(data)
+        dataset = memfile.open()
+        dataset._terra_texture_memfile = memfile  # keep alive alongside dataset
+        return dataset
+    else:
+        return rasterio.open(path)
+
+
+def load_dem_mosaic(paths, target_crs=None, bounds=None, bounds_crs="EPSG:4326"):
     """Merge two or more DEM tiles into a single seamless array (e.g.
     neighbouring ArcticDEM mosaic tiles). Any mix of plain rasters and
     .tar.gz/.tgz archives is fine -- each is opened via _open_raster().
@@ -85,7 +163,12 @@ def load_dem_mosaic(paths, target_crs=None):
         raise ValueError("load_dem_mosaic needs at least two tile paths")
 
     with ExitStack() as stack:
-        srcs = [stack.enter_context(_open_raster(p)) for p in paths]
+        # srcs = [stack.enter_context(_open_raster(p)) for p in paths]
+        with ThreadPoolExecutor(max_workers=min(8, len(paths))) as executor:
+            srcs = list(executor.map(_open_raster_sync, paths))
+        for s in srcs:
+            stack.callback(s.close)
+
         if target_crs is None:
             target_crs = srcs[0].crs
 
@@ -94,13 +177,21 @@ def load_dem_mosaic(paths, target_crs=None):
             if s.crs is not None and str(s.crs).upper() != str(target_crs).upper():
                 aligned.append(
                     stack.enter_context(
-                        WarpedVRT(s, crs=target_crs, resampling=ResamplingEnum.bilinear)
+                        WarpedVRT(
+                            s, crs=target_crs, resampling=ResamplingEnum.bilinear,
+                            warp_mem_limit=256, warp_extras={"NUM_THREADS": "ALL_CPUS"},
+                        )
                     )
                 )
             else:
                 aligned.append(s)
 
         nodata = aligned[0].nodata
+
+        merge_bounds = None
+        if bounds is not None:
+            merge_bounds = transform_bounds(bounds_crs, target_crs, *bounds)
+
         mosaic, transform = rio_merge(aligned, nodata=nodata)
 
     dem = mosaic[0].astype(np.float32)
