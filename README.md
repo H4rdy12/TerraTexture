@@ -1,10 +1,10 @@
-# TerraTexture
+<!-- # TerraTexture -->
 
 <div class="light-mode">
-  <img align="center" width="400" height="250" src="https://github.com/H4rdy12/TerraTexture/blob/main/examples/resources/TerraTexture_logo_1.jpg?raw=true#gh-light-mode-only" />
+  <img align="center" width="500" height="280" src="https://github.com/H4rdy12/TerraTexture/blob/main/examples/resources/TerraTexture_logo_1.jpg?raw=true#gh-light-mode-only" />
 </div>
 <div class="dark-mode" style="display:none;">
-  <img align="center" width="400" height="225" src="https://github.com/H4rdy12/TerraTexture/blob/main/examples/resources/TerraTexture_logo_1.jpg?raw=true#gh-dark-mode-only"-->
+  <img align="center" width="500" height="280" src="https://github.com/H4rdy12/TerraTexture/blob/main/examples/resources/TerraTexture_logo_1.jpg?raw=true#gh-dark-mode-only"-->
 </div>
 
 Tool to generate textured basemaps using open source DEMs and basemap
