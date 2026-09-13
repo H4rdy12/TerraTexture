@@ -34,6 +34,8 @@ uv sync --extra raster                     # + loading real DEM files (rasterio)
 uv sync --extra basemap                    # + draping relief over basemap imagery (rasterio + contextily)
 uv sync --group dev                        # + pytest, flake8 (dev tooling)
 uv sync --group dev --extra raster         # dev tooling + raster extras together (typical local setup)
+uv add --dev ipykernel          # or: uv pip install ipykernel
+uv run python -m ipykernel install --user --name terratexture --display-name "TerraTexture (uv)"
 ```
 
 `uv sync` creates/updates a `.venv/` in the repo root and a `uv.lock`
@@ -43,18 +45,18 @@ inside that environment with `uv run`, e.g. `uv run pytest` or
 `uv run terratexture curvature`, without manually activating the venv.
 
 The core install (numpy/scipy/matplotlib only) is enough for
-`terra_texture.derivatives`, `terra_texture.blend`, `terra_texture.stretch`, and
-`terra_texture.plotting` on an in-memory array or the built-in synthetic
+`TerraTexture.derivatives`, `TerraTexture.blend`, `TerraTexture.stretch`, and
+`TerraTexture.plotting` on an in-memory array or the built-in synthetic
 demo DEM. Real raster I/O and basemap imagery need the optional extras
 above.
 
 Fetching open-source ArcticDEM/REMA mosaic tiles for an AOI
-(`terra_texture.sources`) additionally needs `requests` -- included in the
+(`TerraTexture.sources`) additionally needs `requests` -- included in the
 `raster`/`basemap` extras above. No signup, API key, or local software
 required: it queries PGC's public STAC API directly.
 
 ```python
-from terra_texture.sources import arcticdem_mosaic, rema_mosaic
+from TerraTexture.sources import arcticdem_mosaic, rema_mosaic
 
 # bounds in EPSG:3413 (ArcticDEM's native CRS); covers the Arctic,
 # including Greenland
@@ -74,7 +76,7 @@ basemap imagery" below.
 
 ## Open-data DEM sources
 
-`terra_texture.sources` (needs `requests`, included in the
+`TerraTexture.sources` (needs `requests`, included in the
 `raster`/`basemap` extras above) fetches real elevation data for an AOI
 from public, unauthenticated STAC catalogs -- no signup, no API key, no
 local software to install. It supports two catalogs today, and each
@@ -114,7 +116,7 @@ licensing and citation requirements (visible in each collection's STAC
 metadata via `describe_stac_collection()`) — check before publishing
 results derived from `opentopography_mosaic()`.
 ```python
-from terra_texture.sources import arcticdem_mosaic, rema_mosaic
+from TerraTexture.sources import arcticdem_mosaic, rema_mosaic
 
 # bounds in EPSG:3413 (ArcticDEM's native CRS); covers the Arctic,
 # including Greenland
@@ -146,7 +148,7 @@ workflow is "list what's available, then fetch from whichever one you
 pick":
 
 ```python
-from terra_texture.sources import list_stac_collections, opentopography_mosaic, OT_STAC_ROOT
+from TerraTexture.sources import list_stac_collections, opentopography_mosaic, OT_STAC_ROOT
 
 for collection in list_stac_collections(OT_STAC_ROOT):
     print(collection["id"])
@@ -175,8 +177,8 @@ uv run python examples/quickstart.py
 ```
 
 ```python
-from terra_texture.io import load_dem
-from terra_texture.plotting import plot_dem_curvature_softlight
+from TerraTexture.io import load_dem
+from TerraTexture.plotting import plot_dem_curvature_softlight
 
 dem, cellsize = load_dem(None)  # synthetic demo DEM
 fig, axes, results = plot_dem_curvature_softlight(dem, cellsize=cellsize)
@@ -195,7 +197,7 @@ uv run terratexture opentopography fetch "SRTM GL1" -121.8 36.5 -121.6 36.7 --ou
 ## Draping relief over basemap imagery
 
 ```python
-from terra_texture.basemap import plot_dem_basemap_luminosity_relief
+from TerraTexture.basemap import plot_dem_basemap_luminosity_relief
 
 fig, ax, layers = plot_dem_basemap_luminosity_relief(
     dem_path="path/to/15_44_32m_v4.1.tar.gz",   # ArcticDEM mosaic tile, or any GeoTIFF
@@ -271,8 +273,8 @@ return real tiles.
 ## Burning scientific data onto relief
 
 ```python
-from terra_texture.basemap import add_relief_basemap
-from terra_texture.overlay import burn_data_onto_relief
+from TerraTexture.basemap import add_relief_basemap
+from TerraTexture.overlay import burn_data_onto_relief
  
 layers = add_relief_basemap(ax, aoi_bounds=my_bounds)
 composite, mappable = burn_data_onto_relief(
