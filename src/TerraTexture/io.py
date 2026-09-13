@@ -2,16 +2,13 @@
 Raster I/O: opening DEM files (including .tar.gz/.tgz mosaic archives),
 merging multi-tile mosaics, and building the synthetic demo DEM.
 
-Only depends on rasterio + numpy + scipy -- no contextily, no
-DEMSquad_STAC. Import this module on its own if all you need is to load
-a DEM.
+Only depends on rasterio + numpy + scipy -- no contextily, no `requests`.
+Import this module on its own if all you need is to load a DEM.
 """
 
 import os
 import tarfile
 from contextlib import contextmanager
-from concurrent.futures import ThreadPoolExecutor
-from rasterio.warp import transform_bounds
 
 import numpy as np
 from scipy.ndimage import gaussian_filter, distance_transform_edt
@@ -20,7 +17,7 @@ from scipy.ndimage import gaussian_filter, distance_transform_edt
 def _fix_proj_env():
     """Defensively point PROJ at rasterio's own bundled database, rather
     than whatever a conda installation's PROJ_LIB may have set globally.
- 
+
     Common failure mode this works around: conda's base environment
     auto-activates in every new shell and exports something like
     PROJ_LIB=/opt/anaconda3/share/proj into the process environment --
@@ -32,7 +29,7 @@ def _fix_proj_env():
     applies automatically for every user, rather than requiring each
     person to debug their own machine's conda configuration or manually
     set environment variables in every notebook/kernel.
- 
+
     Ordering here is load-bearing: rasterio's bundled GDAL/PROJ appears
     to read PROJ_LIB/PROJ_DATA once, at C-extension load time, and
     caches that decision -- setting the env var *after* `import rasterio`
@@ -42,23 +39,23 @@ def _fix_proj_env():
     via `importlib.util.find_spec()`, which does NOT execute/import the
     module, fixes the environment, and only *then* lets rasterio import
     normally wherever it's needed next.
- 
+
     No-ops silently if rasterio isn't installed (core-only install) or
     if rasterio's own proj_data directory can't be found for any reason
     -- this is a best-effort fix, not a hard requirement.
     """
     import importlib.util
- 
+
     spec = importlib.util.find_spec("rasterio")
     if spec is None or spec.origin is None:
         return  # rasterio not installed -- nothing to fix
- 
+
     proj_data = os.path.join(os.path.dirname(spec.origin), "proj_data")
     if os.path.isdir(proj_data):
         os.environ["PROJ_DATA"] = proj_data
         os.environ.pop("PROJ_LIB", None)
- 
- 
+
+
 _fix_proj_env()
 
 
@@ -101,11 +98,19 @@ def _open_raster(path):
 def _open_raster_sync(path):
     """Same logic as `_open_raster()`, but returns the opened dataset
     directly instead of as a context manager -- lets `load_dem_mosaic()`
-    open multiple tiles concurrently via a thread pool..."""
+    open multiple tiles concurrently via a thread pool (each open is
+    I/O-bound: an HTTPS COG's header fetch, or a local .tar.gz archive's
+    extraction), with the caller responsible for closing the returned
+    dataset itself (e.g. by registering it on an ExitStack).
+
+    For the .tar.gz case, the underlying MemoryFile is attached to the
+    returned dataset as a private attribute so it isn't garbage
+    collected out from under the still-open dataset."""
     import rasterio
 
     if str(path).endswith((".tar.gz", ".tgz")):
         from rasterio.io import MemoryFile
+
         with tarfile.open(path, "r:gz") as tar:
             members = tar.getmembers()
             tif_member = next(
@@ -120,6 +125,7 @@ def _open_raster_sync(path):
                 raise ValueError(f"No TIFF file found inside archive {path}")
             with tar.extractfile(tif_member) as f:
                 data = f.read()
+
         memfile = MemoryFile(data)
         dataset = memfile.open()
         dataset._terra_texture_memfile = memfile  # keep alive alongside dataset
@@ -145,6 +151,18 @@ def load_dem_mosaic(paths, target_crs=None, bounds=None, bounds_crs="EPSG:4326")
         Two or more DEM file paths (rasters or .tar.gz/.tgz archives).
     target_crs : str or None
         CRS to merge into. Defaults to the first tile's own CRS.
+    bounds : tuple or None
+        (min_x, min_y, max_x, max_y) to clip the merge to, in
+        `bounds_crs`. When given, only this region is read from each
+        tile instead of each tile's full extent -- for HTTPS COG tiles
+        this means GDAL's windowed /vsicurl reads fetch only the
+        intersecting portion, which can be dramatically less data than
+        the tile's full footprint when the AOI is much smaller than the
+        tiles that happen to intersect it. None (the default) merges
+        each tile's full extent, matching the previous behaviour.
+    bounds_crs : str
+        CRS of `bounds`. Reprojected internally to whatever `target_crs`
+        resolves to before being passed to the merge.
 
     Returns
     -------
@@ -154,16 +172,22 @@ def load_dem_mosaic(paths, target_crs=None, bounds=None, bounds_crs="EPSG:4326")
     crs : the CRS the mosaic was merged into
     """
     from contextlib import ExitStack
+    from concurrent.futures import ThreadPoolExecutor
     from rasterio.merge import merge as rio_merge
     from rasterio.vrt import WarpedVRT
     from rasterio.enums import Resampling as ResamplingEnum
+    from rasterio.warp import transform_bounds
 
     paths = list(paths)
     if len(paths) < 2:
         raise ValueError("load_dem_mosaic needs at least two tile paths")
 
     with ExitStack() as stack:
-        # srcs = [stack.enter_context(_open_raster(p)) for p in paths]
+        # Opening each tile is I/O-bound (an HTTPS COG's header fetch, or
+        # a .tar.gz archive's local extraction) -- parallelize across
+        # tiles rather than opening one at a time. ThreadPoolExecutor.map
+        # preserves input order, which matters for rio_merge's "first
+        # valid pixel wins" semantics.
         with ThreadPoolExecutor(max_workers=min(8, len(paths))) as executor:
             srcs = list(executor.map(_open_raster_sync, paths))
         for s in srcs:
@@ -192,7 +216,7 @@ def load_dem_mosaic(paths, target_crs=None, bounds=None, bounds_crs="EPSG:4326")
         if bounds is not None:
             merge_bounds = transform_bounds(bounds_crs, target_crs, *bounds)
 
-        mosaic, transform = rio_merge(aligned, nodata=nodata)
+        mosaic, transform = rio_merge(aligned, bounds=merge_bounds, nodata=nodata)
 
     dem = mosaic[0].astype(np.float32)
     if nodata is not None:
