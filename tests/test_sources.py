@@ -37,7 +37,7 @@ def test_stac_search_single_page():
         "features": [_item("tile_a", "https://example.com/a_dem.tif")],
         "links": [],
     }
-    with patch("requests.post", return_value=_fake_response(page)) as mock_post:
+    with patch("requests.Session.post", return_value=_fake_response(page)) as mock_post:
         items = stac_search(["some-collection"], (0, 0, 1, 1))
 
     assert len(items) == 1
@@ -57,8 +57,8 @@ def test_stac_search_follows_pagination():
         "features": [_item("tile_b", "https://example.com/b_dem.tif")],
         "links": [],
     }
-    with patch("requests.post", return_value=_fake_response(page1)), \
-         patch("requests.get", return_value=_fake_response(page2)) as mock_get:
+    with patch("requests.Session.post", return_value=_fake_response(page1)), \
+         patch("requests.Session.get", return_value=_fake_response(page2)) as mock_get:
         items = stac_search(["some-collection"], (0, 0, 1, 1))
 
     assert [item["id"] for item in items] == ["tile_a", "tile_b"]
@@ -73,7 +73,7 @@ def test_stac_search_respects_max_items():
         ],
         "links": [{"rel": "next", "href": "https://example.com/search?page=2", "method": "GET"}],
     }
-    with patch("requests.post", return_value=_fake_response(page)):
+    with patch("requests.Session.post", return_value=_fake_response(page)):
         items = stac_search(["some-collection"], (0, 0, 1, 1), max_items=1)
 
     assert len(items) == 1
@@ -92,7 +92,7 @@ def test_mosaic_dem_urls_rejects_bad_resolution():
 
 def test_arcticdem_mosaic_urls_builds_correct_collection():
     page = {"features": [_item("58_10_2m_v4.1", "https://example.com/dem.tif")], "links": []}
-    with patch("requests.post", return_value=_fake_response(page)) as mock_post:
+    with patch("requests.Session.post", return_value=_fake_response(page)) as mock_post:
         urls = arcticdem_mosaic_urls((0, 0, 1, 1), resolution=2)
 
     assert urls == ["https://example.com/dem.tif"]
@@ -102,7 +102,7 @@ def test_arcticdem_mosaic_urls_builds_correct_collection():
 
 def test_rema_mosaic_urls_builds_correct_collection():
     page = {"features": [_item("44_06_32m_v2.0", "https://example.com/dem.tif")], "links": []}
-    with patch("requests.post", return_value=_fake_response(page)) as mock_post:
+    with patch("requests.Session.post", return_value=_fake_response(page)) as mock_post:
         urls = rema_mosaic_urls((0, 0, 1, 1), resolution=32)
 
     assert urls == ["https://example.com/dem.tif"]
@@ -135,7 +135,7 @@ def test_list_stac_collections_follows_child_links():
             {"rel": "child", "href": "https://example.com/cop30/collection.json", "title": "COP30"},
         ],
     }
-    with patch("requests.get", return_value=_fake_response(catalog)):
+    with patch("requests.Session.get", return_value=_fake_response(catalog)):
         collections = list_stac_collections("https://example.com/catalog.json")
 
     ids = [c["id"] for c in collections]
@@ -162,7 +162,7 @@ def test_stac_collection_items_filters_by_bbox_client_side():
             return _fake_response(collection_doc)
         return _fake_response(items_page)
 
-    with patch("requests.get", side_effect=fake_get):
+    with patch("requests.Session.get", side_effect=fake_get):
         items = stac_collection_items(
             {"href": "https://example.com/srtm/collection.json"}, bbox=(0, 0, 2, 2),
         )
@@ -190,7 +190,7 @@ def test_stac_collection_items_paginates():
             return _fake_response(page1)
         return _fake_response(page2)
 
-    with patch("requests.get", side_effect=fake_get):
+    with patch("requests.Session.get", side_effect=fake_get):
         items = stac_collection_items(
             {"href": "https://example.com/collection.json"}, bbox=(0, 0, 2, 2),
         )
@@ -220,7 +220,7 @@ def test_opentopography_dem_urls_resolves_collection_by_id():
             return _fake_response(collection_doc)
         return _fake_response(items_page)
 
-    with patch("requests.get", side_effect=fake_get):
+    with patch("requests.Session.get", side_effect=fake_get):
         urls = opentopography_dem_urls(
             "SRTM GL1", (0, 0, 2, 2), catalog_url="https://example.com/catalog.json",
         )
@@ -232,7 +232,7 @@ def test_opentopography_dem_urls_unknown_collection_lists_available():
     catalog = {
         "links": [{"rel": "child", "href": "https://example.com/srtm/collection.json", "title": "SRTM GL1"}],
     }
-    with patch("requests.get", return_value=_fake_response(catalog)):
+    with patch("requests.Session.get", return_value=_fake_response(catalog)):
         with pytest.raises(ValueError, match="SRTM GL1"):
             opentopography_dem_urls(
                 "NoSuchDataset", (0, 0, 1, 1), catalog_url="https://example.com/catalog.json",
