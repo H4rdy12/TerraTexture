@@ -552,7 +552,7 @@ def arcticdem_mosaic(bounds, resolution=32, version="4.1", bbox_crs="EPSG:4326",
             "No ArcticDEM mosaic tiles intersect the given bounds "
             f"({bounds} in {bbox_crs})."
         )
-    return load_dem_mosaic(urls, target_crs=target_crs)
+    return load_dem_mosaic(urls, target_crs=target_crs, bounds=bounds, bounds_crs=bbox_crs)
 
 
 def rema_mosaic(bounds, resolution=32, version="2.0", bbox_crs="EPSG:4326", target_crs=None, max_items=None):
@@ -566,7 +566,7 @@ def rema_mosaic(bounds, resolution=32, version="2.0", bbox_crs="EPSG:4326", targ
         raise ValueError(
             f"No REMA mosaic tiles intersect the given bounds ({bounds} in {bbox_crs})."
         )
-    return load_dem_mosaic(urls, target_crs=target_crs)
+    return load_dem_mosaic(urls, target_crs=target_crs, bounds=bounds, bounds_crs=bbox_crs)
 
 
 def make_demo_geotiff(
