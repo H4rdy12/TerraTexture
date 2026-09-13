@@ -134,7 +134,6 @@ def stac_search(
     list of dict
         Raw STAC Item objects (GeoJSON Features) matching the search.
     """
-    import requests
     session = _get_session()
 
     search_url = api_url.rstrip("/") + "/search"

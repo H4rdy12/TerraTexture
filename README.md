@@ -1,5 +1,12 @@
 # TerraTexture
 
+<div class="light-mode">
+  <img align="center" width="300" height="250" src="https://raw.githubusercontent.com/H4rdy12/TerraTexture/examples/resources/TerraTexture_logo_1.svg#gh-light-mode-only" />
+</div>
+<div class="dark-mode" style="display:none;">
+  <img align="center" width="300" height="225" src="https://raw.githubusercontent.com/H4rdy12/TerraTexture/examples/resources/TerraTexture_logo_1.svg#gh-dark-mode-only"-->
+</div>
+
 Tool to generate textured basemaps using open source DEMs and basemap
 imagery from Contextily.
 
