@@ -77,6 +77,26 @@ def main(argv=None):
     )
     ot_fetch.add_argument("--max-items", type=int, default=None)
 
+    p_pgc = sub.add_parser(
+        "pgc",
+        help="Fetch ArcticDEM/REMA mosaic tiles for an AOI from PGC's public STAC API",
+    )
+    pgc_sub = p_pgc.add_subparsers(dest="pgc_command", required=True)
+
+    pgc_fetch = pgc_sub.add_parser(
+        "fetch", help="Fetch + merge ArcticDEM or REMA mosaic tiles intersecting a bbox",
+    )
+    pgc_fetch.add_argument("product", choices=["arcticdem", "rema"])
+    pgc_fetch.add_argument("min_x", type=float)
+    pgc_fetch.add_argument("min_y", type=float)
+    pgc_fetch.add_argument("max_x", type=float)
+    pgc_fetch.add_argument("max_y", type=float)
+    pgc_fetch.add_argument("--bbox-crs", default="EPSG:4326", help="CRS of the four bounds above.")
+    pgc_fetch.add_argument("--resolution", type=int, default=32, choices=[2, 10, 32])
+    pgc_fetch.add_argument("--target-crs", default=None, help="Output CRS (default: product's native CRS).")
+    pgc_fetch.add_argument("--out", dest="out_tif", default="pgc_dem.tif")
+    pgc_fetch.add_argument("--max-items", type=int, default=None)
+
     args = parser.parse_args(argv)
 
     if args.command == "curvature":
@@ -117,6 +137,25 @@ def main(argv=None):
             dem, cellsize, transform, crs = opentopography_mosaic(
                 args.collection, bounds, bbox_crs=args.bbox_crs,
                 asset_key=args.asset_key, max_items=args.max_items,
+            )
+            with rasterio.open(
+                args.out_tif, "w", driver="GTiff", height=dem.shape[0], width=dem.shape[1],
+                count=1, dtype=dem.dtype, crs=crs, transform=transform,
+            ) as dst:
+                dst.write(dem, 1)
+            print(f"Saved merged DEM to {args.out_tif} (cellsize={cellsize}, crs={crs})")
+
+    elif args.command == "pgc":
+        from .sources import arcticdem_mosaic, rema_mosaic
+
+        if args.pgc_command == "fetch":
+            import rasterio
+
+            fetch = arcticdem_mosaic if args.product == "arcticdem" else rema_mosaic
+            bounds = (args.min_x, args.min_y, args.max_x, args.max_y)
+            dem, cellsize, transform, crs = fetch(
+                bounds, resolution=args.resolution, bbox_crs=args.bbox_crs,
+                target_crs=args.target_crs, max_items=args.max_items,
             )
             with rasterio.open(
                 args.out_tif, "w", driver="GTiff", height=dem.shape[0], width=dem.shape[1],
