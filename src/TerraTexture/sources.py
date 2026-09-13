@@ -342,7 +342,7 @@ def stac_collection_items(
         params["bbox"] = ",".join(str(v) for v in bbox_4326)
 
     while url is not None:
-        response = requests.get(url, params=params, timeout=timeout)
+        response = session.get(url, params=params, timeout=timeout)
         response.raise_for_status()
         payload = response.json()
         page_items = payload.get("features", [])
