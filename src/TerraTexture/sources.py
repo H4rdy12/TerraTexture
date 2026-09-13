@@ -68,6 +68,26 @@ _MOSAIC_VERSION = {
 # Resolutions PGC actually publishes mosaic collections at, in meters.
 _MOSAIC_RESOLUTIONS = (2, 10, 32)
 
+_session = None
+
+
+def _get_session():
+    """Shared requests.Session for every STAC HTTP call in this module.
+
+    Every call site here previously used the bare `requests.get`/`post`
+    module functions, each opening a brand-new TCP connection (and, for
+    HTTPS, a fresh TLS handshake) even when hitting the same host
+    repeatedly -- e.g. opentopography_dem_urls() does catalog fetch ->
+    collection fetch -> items fetch, three round trips to the same host.
+    A shared Session pools and reuses connections across all of them.
+    """
+    global _session
+    if _session is None:
+        import requests
+
+        _session = requests.Session()
+    return _session
+
 
 def stac_search(
     collections,
@@ -115,6 +135,7 @@ def stac_search(
         Raw STAC Item objects (GeoJSON Features) matching the search.
     """
     import requests
+    session = _get_session()
 
     search_url = api_url.rstrip("/") + "/search"
     body = {"collections": list(collections), "bbox": list(bbox), "limit": page_size}
@@ -128,9 +149,9 @@ def stac_search(
 
     while request is not None:
         if request["method"] == "POST":
-            response = requests.post(request["url"], json=request["json"], timeout=timeout)
+            response = session.post(request["url"], json=request["json"], timeout=timeout)
         else:
-            response = requests.get(request["url"], params=request.get("params"), timeout=timeout)
+            response = session.get(request["url"], params=request.get("params"), timeout=timeout)
         response.raise_for_status()
         payload = response.json()
 
@@ -213,9 +234,9 @@ def list_stac_collections(catalog_url, timeout=30):
         already resolved to an absolute URL (relative hrefs are common in
         static catalogs) -- pass it straight to `stac_collection_items()`.
     """
-    import requests
 
-    response = requests.get(catalog_url, timeout=timeout)
+    session = _get_session()
+    response = session.get(catalog_url, timeout=timeout)
     response.raise_for_status()
     catalog = response.json()
 
@@ -236,9 +257,8 @@ def describe_stac_collection(collection_href, timeout=30):
     etc.) -- use after `list_stac_collections()` to inspect a candidate
     before committing to querying its items, since the child-link title
     alone is often not very descriptive."""
-    import requests
-
-    response = requests.get(collection_href, timeout=timeout)
+    session = _get_session()
+    response = session.get(collection_href, timeout=timeout)
     response.raise_for_status()
     return response.json()
 
@@ -287,10 +307,11 @@ def stac_collection_items(
     list of dict
         Raw STAC Item objects (GeoJSON Features) intersecting `bbox`.
     """
-    import requests
+    session = _get_session()
 
     if isinstance(collection, str):
-        response = requests.get(collection, timeout=timeout)
+
+        response = session.get(collection, timeout=timeout)
         response.raise_for_status()
         collection_doc = response.json()
         collection_url = collection
@@ -301,7 +322,7 @@ def stac_collection_items(
         else:
             # a {"id", "title", "href"} summary from list_stac_collections()
             # -- fetch the real document to get its "items" link
-            response = requests.get(collection_url, timeout=timeout)
+            response = session.get(collection_url, timeout=timeout)
             response.raise_for_status()
             collection_doc = response.json()
 
