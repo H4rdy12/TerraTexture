@@ -1,7 +1,4 @@
 """
-TerraTexture
-==========
-
 DEM curvature analysis + soft-light / luminosity-blended shaded relief
 visualization.
 

@@ -1,0 +1,39 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=DM+Sans:wght@300;400;500&display=swap');
+
+/*
+TerraTexture docs theme.
+Colors sampled directly from the project logo:
+  brand blue  #244459  ("erra")
+  brand green #135821  ("Texture")
+Background is light grey with a dimgrey topographic-contour texture
+(see layout.css) generated from the package's own synthetic demo DEM --
+contour lines are literally what this tool computes, so the docs'
+background is the product.
+*/
+
+:root {
+    --pdoc-background: #eef0ed;
+}
+
+.pdoc {
+    --text:         #22262a;
+    --muted:        #696969;
+    --link:         #244459;
+    --link-hover:   #3d6683;
+    --code:         #f4f5f2;
+    --active:       rgba(36, 68, 89, 0.12);
+
+    --accent:       rgba(36, 68, 89, 0.06);
+    --accent2:      #d7dad3;
+
+    --nav-hover:    rgba(36, 68, 89, 0.08);
+    --name:         #244459;
+    --def:          #135821;
+    --annotation:   #135821;
+}
+
+.modulename {
+    color: #22262a;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 500;
+}

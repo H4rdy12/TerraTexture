@@ -40,6 +40,13 @@ dev = [
     "pytest",
     "flake8",
     "flake8-pyproject",
+    "ipykernel>=6.31.0",
+]
+
+# Building API docs (docs/build_docs.py) -- kept separate from `dev` since
+# it's a distinct concern (documentation generation, not test/lint tooling).
+docs = [
+    "pdoc",
 ]
 
 [project.scripts]
