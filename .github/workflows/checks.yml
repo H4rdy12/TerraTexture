@@ -5,7 +5,7 @@ name: checks | Build, Test
 # merged -- see scripts/setup-branch-protection.sh / README "Branch
 # protection" section for how that requirement is configured on GitHub's
 # side (it isn't something this YAML file can enforce by itself).
-
+ 
 on:
   push:
     branches: [main]
@@ -177,3 +177,57 @@ jobs:
             echo "One or more required jobs were cancelled."
             exit 1
           fi
+
+  # ---------------------------------------------------------------------
+  # DOCS -- build the branded pdoc site (docs_template/, docs/build_docs.py)
+  # once everything else has passed, and only on pushes to main (not PRs,
+  # so unmerged work never gets deployed). Separate build/deploy jobs so
+  # only the deploy step carries the Pages permissions, matching GitHub's
+  # own recommended actions/deploy-pages pattern.
+  # ---------------------------------------------------------------------
+  docs:
+    needs: all-checks
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+  
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+  
+      - name: Sync environment (docs + raster + basemap extras)
+        run: uv sync --group docs --extra raster --extra basemap
+  
+      - name: Build docs
+        env:
+          # pdoc has to actually import TerraTexture to introspect it (this
+          # package's io.py runs a small PROJ-environment fix at import
+          # time -- see its own docstring) -- some pdoc/CI setups require
+          # explicitly opting into that. Harmless to set even where it
+          # isn't strictly required.
+          PDOC_ALLOW_EXEC: "1"
+        run: uv run python docs/build_docs.py
+  
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/site
+  
+  deploy:
+    # Separate job so that only actions/deploy-pages has the necessary
+    # permissions -- keeps the build job's permissions minimal.
+    needs: docs
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      actions: read
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
+   
