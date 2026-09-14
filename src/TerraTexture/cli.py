@@ -1,13 +1,15 @@
 """
 Command-line entry point: `terratexture` / `python -m TerraTexture`.
 
-Subcommands:
-    terratexture curvature       DEM_PATH  -> plot_dem_curvature_softlight()
-    terratexture basemap         DEM_PATH  -> plot_dem_basemap_luminosity_relief()
-    terratexture opentopography list       -> list available OpenTopography collections
-    terratexture opentopography fetch ...  -> fetch + merge tiles from a chosen collection
+### Subcommands
+| Command | Does |
+|---|---|
+| `terratexture curvature DEM_PATH` | `plot_dem_curvature_softlight()` |
+| `terratexture basemap DEM_PATH` | `plot_dem_basemap_luminosity_relief()` |
+| `terratexture opentopography list` | list available OpenTopography collections |
+| `terratexture opentopography fetch ...` | fetch + merge tiles from a chosen collection |
 
-Run `curvature` with no DEM_PATH to use the synthetic demo DEM (basemap
+Run `curvature` with no `DEM_PATH` to use the synthetic demo DEM (basemap
 needs a real georeferenced file since it fetches imagery for an actual
 location).
 """

@@ -1,5 +1,5 @@
 """
-Raster I/O: opening DEM files (including .tar.gz/.tgz mosaic archives),
+Raster I/O: opening DEM files (including `.tar.gz`/`.tgz` mosaic archives),
 merging multi-tile mosaics, and building the synthetic demo DEM.
 
 Only depends on rasterio + numpy + scipy -- no contextily, no `requests`.

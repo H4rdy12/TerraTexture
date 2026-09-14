@@ -4,7 +4,7 @@ soft-lit relief, and a final elevation+relief composite.
 
 Depends only on numpy/scipy/matplotlib -- no rasterio or contextily.
 Use this for offline curvature analysis on an in-memory DEM array; see
-TerraTexture.basemap for the version that drapes relief over real-world
+`TerraTexture.basemap` for the version that drapes relief over real-world
 basemap imagery.
 """
 

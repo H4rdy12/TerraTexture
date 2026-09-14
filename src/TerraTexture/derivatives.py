@@ -1,10 +1,10 @@
 """
 Curvature and hillshade computation.
 
-Computes profile curvature (rate of change of slope, along the direction
-of steepest descent -- controls acceleration/deceleration of flow) and
-planform curvature (curvature of contour lines, perpendicular to slope
-direction -- controls flow convergence/divergence).
+Computes **profile curvature** (rate of change of slope, along the
+direction of steepest descent -- controls acceleration/deceleration of
+flow) and **planform curvature** (curvature of contour lines,
+perpendicular to slope direction -- controls flow convergence/divergence).
 
 Formulas follow Zevenbergen & Thorne (1987), the standard used by
 ArcGIS/QGIS/GRASS 3x3-window curvature tools:
@@ -12,15 +12,15 @@ ArcGIS/QGIS/GRASS 3x3-window curvature tools:
     p = dz/dx, q = dz/dy
     r = d2z/dx2, t = d2z/dy2, s = d2z/dxdy
 
-    profile curvature = -(r*p^2 + 2*s*p*q + t*q^2) / ((p^2+q^2)*(1+p^2+q^2)^1.5)
+    profile curvature  = -(r*p^2 + 2*s*p*q + t*q^2) / ((p^2+q^2)*(1+p^2+q^2)^1.5)
     planform curvature = -(r*q^2 - 2*s*p*q + t*p^2) / (p^2+q^2)^1.5
 
-Sign convention: positive profile curvature = convex (flow decelerates),
-negative = concave (flow accelerates). Positive planform = convex
-(flow diverges, e.g. ridges), negative = concave (flow converges, e.g.
-channels/valleys). Flat areas (p^2+q^2 -> 0) are set to zero.
+**Sign convention**: positive profile curvature = convex (flow
+decelerates), negative = concave (flow accelerates). Positive planform =
+convex (flow diverges, e.g. ridges), negative = concave (flow converges,
+e.g. channels/valleys). Flat areas (p^2+q^2 -> 0) are set to zero.
 
-Only depends on numpy/scipy -- no rasterio required. See docs/formulas.md
+Only depends on numpy/scipy -- no rasterio required. See `docs/formulas.md`
 for the full derivation and a discussion of the gradient-of-gradient
 approximation used here vs. the closed-form ZT 3x3 stencil.
 """
