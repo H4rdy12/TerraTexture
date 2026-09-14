@@ -55,6 +55,8 @@ def main():
             "--no-include-undocumented",
             "--math",
             "--mermaid",
+            "--logo", "../logo.jpg",  # relative to docs/site/api/*.html -> resolves to docs/site/logo.jpg
+            "--logo-link", "../index.html",  # click the sidebar logo -> back to the landing page
             "-o", str(API_OUTPUT_DIR),
         ],
         check=True,
