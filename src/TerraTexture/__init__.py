@@ -13,7 +13,7 @@ visualization.
 
 ### Remote/open-data DEM sources (requires rasterio + requests; basemap draping additionally requires contextily)
 - `sources.stac_search` / `arcticdem_mosaic` / `rema_mosaic` -- dynamic STAC APIs (PGC)
-- `sources.list_stac_collections` / `stac_collection_items` / `opentopography_mosaic` 
+- `sources.list_stac_collections` / `stac_collection_items` / `opentopography_mosaic`
     -- static/search-less STAC catalogs (OpenTopography, and any other STAC catalog by URL)
 - `sources.make_demo_geotiff`
 - `basemap.plot_dem_basemap_luminosity_relief` / `add_relief_basemap`
