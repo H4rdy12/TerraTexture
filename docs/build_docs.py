@@ -55,8 +55,11 @@ def main():
             "--no-include-undocumented",
             "--math",
             "--mermaid",
-            "--logo", "../logo.jpg",  # relative to docs/site/api/*.html -> resolves to docs/site/logo.jpg
-            "--logo-link", "../index.html",  # click the sidebar logo -> back to the landing page
+            # logo is NOT passed via --logo/--logo-link here -- those apply
+            # one fixed path to every page regardless of nesting depth,
+            # which breaks for submodule pages. See module.html.jinja2's
+            # nav_title block override instead, which computes the
+            # correct relative path per page.
             "-o", str(API_OUTPUT_DIR),
         ],
         check=True,
