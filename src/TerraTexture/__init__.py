@@ -27,7 +27,7 @@ Each of these groups is importable independently -- e.g. you can use
 installed, with no rasterio or contextily on the system at all.
 """
 
-import basemap, blend, cli, derivatives, io, overlay, plotting, sources, stretch
+from . import (basemap, blend, cli, derivatives, io, overlay, plotting, sources, stretch)
 
 # from .derivatives import curvatures, hillshade
 # from .blend import soft_light, luminosity_blend
