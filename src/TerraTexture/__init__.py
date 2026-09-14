@@ -27,18 +27,22 @@ Each of these groups is importable independently -- e.g. you can use
 installed, with no rasterio or contextily on the system at all.
 """
 
-from .derivatives import curvatures, hillshade
-from .blend import soft_light, luminosity_blend
-from .stretch import normalize, stretch_std, bilinear_resample
+import basemap, blend, cli, derivatives, io, overlay, plotting, sources, stretch
+
+# from .derivatives import curvatures, hillshade
+# from .blend import soft_light, luminosity_blend
+# from .stretch import normalize, stretch_std, bilinear_resample
 
 __all__ = [
-    "curvatures",
-    "hillshade",
-    "soft_light",
-    "luminosity_blend",
-    "normalize",
-    "stretch_std",
-    "bilinear_resample",
+    "basemap",
+    "blend",
+    "cli",
+    "derivatives",
+    "io",
+    "overlay",
+    "plotting",
+    "sources",
+    "stretch"
 ]
 
 __version__ = "0.1.0"
