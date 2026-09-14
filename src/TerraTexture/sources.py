@@ -2,9 +2,9 @@
 Open-data DEM sources: a generalised STAC query engine, plus thin
 product-specific convenience methods on top of it, for public,
 unauthenticated STAC catalogs -- currently the Polar Geospatial Center
-(PGC: ArcticDEM covering the Arctic including Greenland, and REMA
-covering Antarctica) and OpenTopography's raster DEM catalog (a large,
-heterogeneous collection of global and regional DEM datasets).
+(**PGC**: ArcticDEM covering the Arctic including Greenland, and REMA
+covering Antarctica) and **OpenTopography**'s raster DEM catalog (a
+large, heterogeneous collection of global and regional DEM datasets).
 
 This replaces an earlier version of this module that queried a private,
 locally-installed STAC catalog (DEMSquad_STAC) via a hardcoded filesystem
@@ -13,39 +13,39 @@ signup, no API key, no local software beyond `requests` (already a
 dependency) -- so anyone can pull real open-source elevation data for an
 AOI out of the box.
 
-Two STAC access patterns, two engines
---------------------------------------
+## Two STAC access patterns, two engines
+
 STAC catalogs come in two practically-different flavours, and a single
 query function can't serve both correctly:
 
-1. **Dynamic STAC APIs** (e.g. PGC's, https://stac.pgc.umn.edu/api/v1)
+1. **Dynamic STAC APIs** (e.g. PGC's, <https://stac.pgc.umn.edu/api/v1>)
    implement the STAC API Item Search extension: a `POST /search` you
    can hand a bbox + collection list, and the server does the spatial
-   filtering. ``stac_search()`` handles this.
+   filtering. `stac_search()` handles this.
 
 2. **Static (or search-less) STAC catalogs** (e.g. OpenTopography's,
-   https://portal.opentopography.org/stac/raster_catalog.json) are just
+   <https://portal.opentopography.org/stac/raster_catalog.json>) are just
    a crawlable tree of Catalog -> Collection -> Item JSON documents with
    no `/search` endpoint at all -- there may be dozens to hundreds of
    collections (one per dataset), each with its own `items` link.
-   ``list_stac_collections()`` lets a caller discover/choose *which*
+   `list_stac_collections()` lets a caller discover/choose *which*
    collection to query (the "ask the user which collection" step), and
-   ``stac_collection_items()`` fetches that collection's items, passing
+   `stac_collection_items()` fetches that collection's items, passing
    `bbox=` as a best-effort server-side hint but ALWAYS re-filtering by
    bbox intersection client-side afterwards -- so it's correct whether
    or not the server actually honours the query parameter.
 
 PGC-specific knowledge (base URL, collection-ID naming, which asset key
 holds the DEM) lives only in the thin product wrappers
-(``arcticdem_mosaic()``, ``rema_mosaic()``); OpenTopography-specific
-defaults live only in ``opentopography_dem_urls()``/``opentopography_mosaic()``.
+(`arcticdem_mosaic()`, `rema_mosaic()`); OpenTopography-specific
+defaults live only in `opentopography_dem_urls()`/`opentopography_mosaic()`.
 Both call the shared engines above -- point either engine at a different
 STAC endpoint entirely and it works the same way for any other public
 STAC catalog.
 
 The DEM assets on both PGC's and OpenTopography's catalogs are plain
 HTTPS Cloud-Optimized GeoTIFFs (not tar.gz archives), so the URLs
-returned here are handed straight to ``io.load_dem_mosaic()`` --
+returned here are handed straight to `io.load_dem_mosaic()` --
 rasterio/GDAL read HTTPS COGs transparently, so no downloading or
 extraction step is needed.
 """

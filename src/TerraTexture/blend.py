@@ -3,11 +3,11 @@ Photoshop/SVG-spec blend modes: soft light and luminosity.
 
 This module is pure numpy array math with zero geospatial dependencies
 (no rasterio, no matplotlib) -- it's deliberately kept dependency-free so
-it can be unit-tested in isolation. See docs/formulas.md for background
+it can be unit-tested in isolation. See `docs/formulas.md` for background
 on the soft-light and luminosity blend formulas.
 
-Optional Rust acceleration
---------------------------
+## Optional Rust acceleration
+
 If the compiled `terra_texture_rs` extension (see `rust/`) is importable,
 `soft_light()` and `luminosity_blend()` dispatch to its fused kernels for
 plain contiguous float32 arrays of the expected shape -- same numerical
@@ -16,8 +16,8 @@ temporary-array-allocating passes. Falls back to the pure-numpy
 implementation whenever the extension isn't built, the platform has no
 prebuilt wheel, or the inputs don't match the fast path's requirements
 (wrong dtype, non-contiguous, mismatched shape). That fallback is
-load-bearing, not incidental: this package's stated design goal is that
-`TerraTexture.derivatives`/`TerraTexture.blend` have zero hard
+**load-bearing, not incidental**: this package's stated design goal is
+that `TerraTexture.derivatives`/`TerraTexture.blend` have zero hard
 dependencies beyond numpy/scipy, and nobody should have to install a
 Rust toolchain just to run curvature analysis.
 

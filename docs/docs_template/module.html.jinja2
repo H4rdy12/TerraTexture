@@ -1,0 +1,54 @@
+{#
+We want to extend the default template instead of defining everything ourselves.
+#}
+{% extends "default/module.html.jinja2" %}
+
+{#
+We can redefine individual blocks.
+For example, if the `--favicon` option does not do what you want, you can specify a replacement like this.
+#}
+{% block favicon %}
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,{% filter urlencode %}{% include "resources/pdoc-logo.svg" %}{% endfilter %}"/>
+{% endblock %}
+
+{#
+Override the logo block instead of using --logo/--logo-link on the CLI:
+those apply one fixed string to every generated page regardless of
+nesting depth, but submodule pages (docs/site/api/TerraTexture/*.html)
+sit one directory deeper than the top-level module page
+(docs/site/api/TerraTexture.html) -- a single relative path can't be
+correct for both. pdoc's own default template already solves exactly
+this for the Module Index link a few lines up
+({{ "../" * module.modulename.count(".") }}index.html), so we reuse the
+same "count the dots in the module path, repeat ../ that many times"
+trick here, plus one extra "../" since our logo.jpg lives one level
+above the api/ output root itself (in docs/site/, not docs/site/api/).
+#}
+{% block nav_title %}
+    {% set uproot = "../" * module.modulename.count(".") %}
+    <a href="{{ uproot }}../index.html">
+        <img src="{{ uproot }}../logo.jpg" class="logo" alt="TerraTexture logo"/>
+    </a>
+{% endblock %}
+
+{#
+We can access system environment variables in the template, for example to pass version information.
+#}
+{% block nav_footer %}
+<center>
+    <footer>TerraTexture v{{ env["VERSION"] | default("0.1.0") }}</footer>
+</center>
+{% endblock %}
+
+{#
+We can also adjust which members are documented by overriding the is_public macro.
+In this example, the private function `Dog.__lt__` is exposed publicly.
+However, doing this is not recommended, see https://pdoc.dev/docs/pdoc.html#control-what-is-documented.
+#}
+{% macro is_public(doc) %}
+    {% if doc.qualname == "Dog.__lt__" %}
+        true
+    {% else %}
+        {{ default_is_public(doc) }}
+    {% endif %}
+{% endmacro %}
