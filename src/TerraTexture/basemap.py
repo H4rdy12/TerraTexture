@@ -39,6 +39,8 @@ def plot_dem_basemap_luminosity_relief(
     figsize=(10, 10),
     out_fig=None,
     show=True,
+    tile_cache_dir=None,
+    tile_connections=16,
 ):
     """Drape a DEM's relief over basemap imagery using the ArcGIS Pro /
     Photoshop "luminosity blend" recipe, layer stack top -> bottom:
@@ -130,8 +132,25 @@ def plot_dem_basemap_luminosity_relief(
         basemap's own lightness is left untouched), so it's rarely
         useful on its own -- this is a blend control, not a fade-out.
     figsize : tuple
-    out_png : str or None
+    out_fig : str or None
+        Path to save the figure to (via plt.savefig), or None to skip
+        saving.
     show : bool
+    tile_cache_dir : str or None
+        Directory to persist downloaded basemap tiles across process
+        runs. contextily's default cache lives in a fresh tempdir that
+        is deleted at interpreter exit (see contextily.tile), so every
+        fresh script/CLI invocation is a cold cache unless this is set.
+        Pass a real path to make the *first* run of a *later* process
+        fast too, not just repeat calls within the same session. None
+        (default) keeps contextily's own ephemeral-cache behaviour.
+    tile_connections : int
+        Number of parallel connections contextily uses to fetch basemap
+        tiles (passed through as `n_connections`). contextily itself
+        defaults to 1, i.e. one tile fetched at a time -- the dominant
+        cost at high zoom, since tile count grows ~4x per zoom level.
+        16 is a reasonable default; check your tile provider's usage
+        policy before going higher (some, e.g. OSM, cap this at 2).
 
     Returns
     -------
@@ -147,6 +166,14 @@ def plot_dem_basemap_luminosity_relief(
 
     if source is None:
         source = ctx.providers.Esri.WorldImagery
+
+    if tile_cache_dir is not None:
+        # contextily's default cache is a tempdir wiped at process exit
+        # (contextily.tile._clear_cache via atexit) -- every fresh
+        # process is a cold cache unless we point it somewhere durable.
+        import os
+        os.makedirs(os.path.expanduser(tile_cache_dir), exist_ok=True)
+        ctx.set_cache_dir(os.path.expanduser(tile_cache_dir))
 
     if dem_path is None and aoi_bounds is None:
         raise ValueError(
@@ -238,7 +265,8 @@ def plot_dem_basemap_luminosity_relief(
         target_crs, "EPSG:4326", west, south, east, north
     )
     basemap_3857, extent_3857 = ctx.bounds2img(
-        lon_west, lat_south, lon_east, lat_north, zoom=zoom, source=source, ll=True
+        lon_west, lat_south, lon_east, lat_north, zoom=zoom, source=source, ll=True,
+        n_connections=tile_connections,
     )
     bm_west, bm_east, bm_south, bm_north = extent_3857
     bm_transform = from_bounds(
@@ -384,7 +412,7 @@ def add_relief_basemap(
         altitude=altitude,
         curvature_std=curvature_std,
         hillshade_std=hillshade_std,
-        out_png=None,
+        out_fig=None,
         show=False,
     )
     plt.close(_fig)  # throwaway standalone figure -- only the arrays matter here
