@@ -42,8 +42,8 @@ def _is_fast_path_2d_f32(arr):
         and arr.dtype == np.float32
         and arr.ndim == 2
     )
- 
- 
+
+
 def _derivatives(dem, cellsize):
     zy, zx = np.gradient(dem, cellsize)       # first partials (p, q)
     zxy, zxx = np.gradient(zx, cellsize)       # d(zx)/dy, d(zx)/dx
@@ -72,10 +72,10 @@ def curvatures(dem, cellsize):
             profile = -(r * p ** 2 + 2 * s * p * q + t * q ** 2) / (p2q2 * (1 + p2q2) ** 1.5)
             planform = -(r * q ** 2 - 2 * s * p * q + t * p ** 2) / (p2q2 ** 1.5)
 
-    # flat cells (p2q2 ~ 0) -> undefined -> set to 0
-    flat = p2q2 < 1e-9
-    profile = np.where(flat, 0.0, np.nan_to_num(profile, nan=0.0, posinf=0.0, neginf=0.0))
-    planform = np.where(flat, 0.0, np.nan_to_num(planform, nan=0.0, posinf=0.0, neginf=0.0))
+        # flat cells (p2q2 ~ 0) -> undefined -> set to 0
+        flat = p2q2 < 1e-9
+        profile = np.where(flat, 0.0, np.nan_to_num(profile, nan=0.0, posinf=0.0, neginf=0.0))
+        planform = np.where(flat, 0.0, np.nan_to_num(planform, nan=0.0, posinf=0.0, neginf=0.0))
 
     profile = np.where(nan_mask, np.nan, profile)
     planform = np.where(nan_mask, np.nan, planform)
