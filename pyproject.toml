@@ -49,6 +49,12 @@ docs = [
     "pdoc",
 ]
 
+# Building the optional Rust extension (rust/, maturin develop) -- kept
+# separate since most work on this project never touches Rust at all.
+rust = [
+    "maturin",
+]
+
 [project.scripts]
 TerraTexture = "TerraTexture.cli:main"
 
