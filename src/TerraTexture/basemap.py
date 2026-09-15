@@ -36,7 +36,7 @@ def plot_dem_basemap_luminosity_relief(
     curvature_std=4,
     hillshade_std=4,
     figsize=(10, 10),
-    out_png=None,
+    out_fig=None,
     show=True,
 ):
     """Drape a DEM's relief over basemap imagery using the ArcGIS Pro /
@@ -268,9 +268,9 @@ def plot_dem_basemap_luminosity_relief(
         )
     plt.tight_layout()
 
-    if out_png:
-        plt.savefig(out_png, dpi=150)
-        print(f"Saved figure to {out_png}")
+    if out_fig:
+        plt.savefig(out_fig, dpi=600)
+        print(f"Saved figure to {out_fig}")
     if show:
         plt.show()
 
