@@ -260,7 +260,6 @@ def plot_dem_basemap_luminosity_relief(
         basemap_rgb[:, :, b] = band_dst
     basemap_rgb = np.clip(basemap_rgb / 255.0, 0, 1)
 
-
     if relief_strength < 1.0:
         basemap_luminosity = (
             0.3 * basemap_rgb[..., 0] + 0.59 * basemap_rgb[..., 1] + 0.11 * basemap_rgb[..., 2]
