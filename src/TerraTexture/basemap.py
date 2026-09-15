@@ -35,6 +35,7 @@ def plot_dem_basemap_luminosity_relief(
     altitude=45,
     curvature_std=4,
     hillshade_std=4,
+    relief_strength=1.0,
     figsize=(10, 10),
     out_fig=None,
     show=True,
@@ -118,6 +119,16 @@ def plot_dem_basemap_luminosity_relief(
         N for the mean +/- N*std stretch applied to curvature and
         hillshade respectively (ArcGIS Pro's "stretched N standard
         deviations" symbology).
+    relief_strength : float
+        How much the DEM/curvature/hillshade relief signal overrides the
+        basemap imagery's own natural brightness, from 0 to 1. Default
+        1.0 replaces the basemap's lightness entirely with the relief
+        signal (the original behaviour). Lower values blend toward the
+        basemap's own natural luminosity instead -- try 0.5-0.7 if the
+        result looks too dark/grey relative to the actual basemap
+        colours. 0.0 shows essentially no relief texture at all (the
+        basemap's own lightness is left untouched), so it's rarely
+        useful on its own -- this is a blend control, not a fade-out.
     figsize : tuple
     out_png : str or None
     show : bool
@@ -249,8 +260,19 @@ def plot_dem_basemap_luminosity_relief(
         basemap_rgb[:, :, b] = band_dst
     basemap_rgb = np.clip(basemap_rgb / 255.0, 0, 1)
 
+
+    if relief_strength < 1.0:
+        basemap_luminosity = (
+            0.3 * basemap_rgb[..., 0] + 0.59 * basemap_rgb[..., 1] + 0.11 * basemap_rgb[..., 2]
+        )
+        target_luminosity = (
+            relief_strength * relief_luminosity + (1 - relief_strength) * basemap_luminosity
+        )
+    else:
+        target_luminosity = relief_luminosity
+
     # -- group's own blend mode against the basemap below it: Luminosity --
-    luminosity_composite = luminosity_blend(basemap_rgb, relief_luminosity)
+    luminosity_composite = luminosity_blend(basemap_rgb, target_luminosity)
 
     # -- topmost layer: imagery again, Soft Light, to restore colour punch --
     final = soft_light(luminosity_composite, basemap_rgb)
