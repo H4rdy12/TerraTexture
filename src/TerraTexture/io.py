@@ -134,96 +134,6 @@ def _open_raster_sync(path):
         return rasterio.open(path)
 
 
-# def load_dem_mosaic(paths, target_crs=None, bounds=None, bounds_crs="EPSG:4326"):
-#     """Merge two or more DEM tiles into a single seamless array (e.g.
-#     neighbouring ArcticDEM mosaic tiles). Any mix of plain rasters and
-#     .tar.gz/.tgz archives is fine -- each is opened via _open_raster().
-
-#     Tiles are reprojected on the fly (via a WarpedVRT) into `target_crs`
-#     if their own CRS doesn't already match it, so this also works for
-#     tiles that come from slightly different source CRSs. Overlapping
-#     regions are mosaicked with rasterio's default "first valid pixel
-#     wins" strategy.
-
-#     Parameters
-#     ----------
-#     paths : sequence of str
-#         Two or more DEM file paths (rasters or .tar.gz/.tgz archives).
-#     target_crs : str or None
-#         CRS to merge into. Defaults to the first tile's own CRS.
-#     bounds : tuple or None
-#         (min_x, min_y, max_x, max_y) to clip the merge to, in
-#         `bounds_crs`. When given, only this region is read from each
-#         tile instead of each tile's full extent -- for HTTPS COG tiles
-#         this means GDAL's windowed /vsicurl reads fetch only the
-#         intersecting portion, which can be dramatically less data than
-#         the tile's full footprint when the AOI is much smaller than the
-#         tiles that happen to intersect it. None (the default) merges
-#         each tile's full extent, matching the previous behaviour.
-#     bounds_crs : str
-#         CRS of `bounds`. Reprojected internally to whatever `target_crs`
-#         resolves to before being passed to the merge.
-
-#     Returns
-#     -------
-#     dem : 2D float array (nodata -> NaN)
-#     cellsize : float
-#     transform : affine.Affine
-#     crs : the CRS the mosaic was merged into
-#     """
-#     from contextlib import ExitStack
-#     from concurrent.futures import ThreadPoolExecutor
-#     from rasterio.merge import merge as rio_merge
-#     from rasterio.vrt import WarpedVRT
-#     from rasterio.enums import Resampling as ResamplingEnum
-#     from rasterio.warp import transform_bounds
-
-#     paths = list(paths)
-#     if len(paths) < 2:
-#         raise ValueError("load_dem_mosaic needs at least two tile paths")
-
-#     with ExitStack() as stack:
-#         # Opening each tile is I/O-bound (an HTTPS COG's header fetch, or
-#         # a .tar.gz archive's local extraction) -- parallelize across
-#         # tiles rather than opening one at a time. ThreadPoolExecutor.map
-#         # preserves input order, which matters for rio_merge's "first
-#         # valid pixel wins" semantics.
-#         with ThreadPoolExecutor(max_workers=min(8, len(paths))) as executor:
-#             srcs = list(executor.map(_open_raster_sync, paths))
-#         for s in srcs:
-#             stack.callback(s.close)
-
-#         if target_crs is None:
-#             target_crs = srcs[0].crs
-
-#         aligned = []
-#         for s in srcs:
-#             if s.crs is not None and str(s.crs).upper() != str(target_crs).upper():
-#                 aligned.append(
-#                     stack.enter_context(
-#                         WarpedVRT(
-#                             s, crs=target_crs, resampling=ResamplingEnum.bilinear,
-#                             warp_mem_limit=256, warp_extras={"NUM_THREADS": "ALL_CPUS"},
-#                         )
-#                     )
-#                 )
-#             else:
-#                 aligned.append(s)
-
-#         nodata = aligned[0].nodata
-
-#         merge_bounds = None
-#         if bounds is not None:
-#             merge_bounds = transform_bounds(bounds_crs, target_crs, *bounds)
-
-#         mosaic, transform = rio_merge(aligned, bounds=merge_bounds, nodata=nodata)
-
-#     dem = mosaic[0].astype(np.float32)
-#     if nodata is not None:
-#         dem = np.where(dem == nodata, np.nan, dem)
-#     cellsize = transform.a
-#     return dem, cellsize, transform, target_crs
-    
 def _read_window_to_memory(src, window, nodata):
     """Read `window` from `src` (an already-open dataset or WarpedVRT)
     fully into RAM as a new, tiny in-memory dataset covering just that
@@ -234,7 +144,7 @@ def _read_window_to_memory(src, window, nodata):
     per-source `.read()` calls internally, but against these local,
     already-resident-in-RAM datasets instead of the original remote
     ones, so those reads become effectively free.
- 
+
     `boundless=True` matters here: `window` comes from the AOI's shared
     merge_bounds, which -- for any tile that doesn't cover the whole
     AOI by itself (the normal case when merging neighbouring tiles) --
@@ -243,11 +153,11 @@ def _read_window_to_memory(src, window, nodata):
     raising, matching what a windowed read against the full mosaic
     would have produced anyway."""
     from rasterio.io import MemoryFile
- 
+
     fill_value = nodata if nodata is not None else 0
     data = src.read(window=window, boundless=True, fill_value=fill_value)
     win_transform = src.window_transform(window)
- 
+
     profile = src.profile.copy()
     profile.update({
         "driver": "GTiff",
@@ -258,7 +168,7 @@ def _read_window_to_memory(src, window, nodata):
     })
     if nodata is not None:
         profile["nodata"] = nodata
- 
+
     memfile = MemoryFile()
     with memfile.open(**profile) as dst:
         dst.write(data)
@@ -271,13 +181,13 @@ def load_dem_mosaic(paths, target_crs=None, bounds=None, bounds_crs="EPSG:4326")
     """Merge two or more DEM tiles into a single seamless array (e.g.
     neighbouring ArcticDEM mosaic tiles). Any mix of plain rasters and
     .tar.gz/.tgz archives is fine -- each is opened via _open_raster().
- 
+
     Tiles are reprojected on the fly (via a WarpedVRT) into `target_crs`
     if their own CRS doesn't already match it, so this also works for
     tiles that come from slightly different source CRSs. Overlapping
     regions are mosaicked with rasterio's default "first valid pixel
     wins" strategy.
- 
+
     Parameters
     ----------
     paths : sequence of str
@@ -303,7 +213,7 @@ def load_dem_mosaic(paths, target_crs=None, bounds=None, bounds_crs="EPSG:4326")
     bounds_crs : str
         CRS of `bounds`. Reprojected internally to whatever `target_crs`
         resolves to before being passed to the merge.
- 
+
     Returns
     -------
     dem : 2D float array (nodata -> NaN)
@@ -318,11 +228,11 @@ def load_dem_mosaic(paths, target_crs=None, bounds=None, bounds_crs="EPSG:4326")
     from rasterio.enums import Resampling as ResamplingEnum
     from rasterio.warp import transform_bounds
     from rasterio.windows import from_bounds as window_from_bounds
- 
+
     paths = list(paths)
     if len(paths) < 2:
         raise ValueError("load_dem_mosaic needs at least two tile paths")
- 
+
     with ExitStack() as stack:
         # Opening each tile is I/O-bound (an HTTPS COG's header fetch, or
         # a .tar.gz archive's local extraction) -- parallelize across
@@ -333,10 +243,10 @@ def load_dem_mosaic(paths, target_crs=None, bounds=None, bounds_crs="EPSG:4326")
             srcs = list(executor.map(_open_raster_sync, paths))
         for s in srcs:
             stack.callback(s.close)
- 
+
         if target_crs is None:
             target_crs = srcs[0].crs
- 
+
         aligned = []
         for s in srcs:
             if s.crs is not None and str(s.crs).upper() != str(target_crs).upper():
@@ -350,13 +260,13 @@ def load_dem_mosaic(paths, target_crs=None, bounds=None, bounds_crs="EPSG:4326")
                 )
             else:
                 aligned.append(s)
- 
+
         nodata = aligned[0].nodata
- 
+
         merge_bounds = None
         if bounds is not None:
             merge_bounds = transform_bounds(bounds_crs, target_crs, *bounds)
- 
+
         if merge_bounds is not None:
             # The actual windowed pixel read is the network-bound part;
             # rasterio.merge.merge() itself reads its sources ONE AT A
@@ -377,9 +287,9 @@ def load_dem_mosaic(paths, target_crs=None, bounds=None, bounds_crs="EPSG:4326")
             merge_sources = prefetched
         else:
             merge_sources = aligned
- 
+
         mosaic, transform = rio_merge(merge_sources, bounds=merge_bounds, nodata=nodata)
- 
+
     dem = mosaic[0].astype(np.float32)
     if nodata is not None:
         dem = np.where(dem == nodata, np.nan, dem)
