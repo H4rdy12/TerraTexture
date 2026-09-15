@@ -36,6 +36,7 @@
 use ndarray::{Array2, Array3, ArrayView2, ArrayView3, Zip};
 use numpy::{IntoPyArray, PyArray2, PyArray3, PyReadonlyArray2, PyReadonlyArray3};
 use pyo3::prelude::*;
+use rayon::prelude::*;
 
 // TODO(benchmark): this is a guess, not a measurement. Run `cargo bench`
 // and replace it with whatever `blend_bench.rs` actually finds as the
