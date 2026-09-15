@@ -31,9 +31,16 @@ def _fake_mosaic_fetch(bounds, resolution=None, bbox_crs=None, target_crs=None):
 
 
 def _fake_bounds2img(*args, **kwargs):
-    """Stand-in for contextily.bounds2img(): a tiny fake RGB tile plus a
-    plausible extent tuple, avoiding any real network call."""
-    tile = (np.random.default_rng(1).random((20, 20, 3)) * 255).astype(np.uint8)
+    """Stand-in for contextily.bounds2img(): a tiny fake tile plus a
+    plausible extent tuple, avoiding any real network call.
+
+    4 bands (RGBA), not 3 -- matches contextily's REAL behaviour
+    (`Image.open(...).convert("RGBA")` in contextily/tile.py, verified
+    against the installed library). A 3-band fake here would hide any
+    bug in how basemap.py handles the alpha channel -- see
+    test_tile_reproject_handles_rgba_tiles_correctly below, which
+    guards the specific bug this shape exists to catch."""
+    tile = (np.random.default_rng(1).random((20, 20, 4)) * 255).astype(np.uint8)
     return tile, (0, 100, 0, 100)
 
 
@@ -74,3 +81,24 @@ def test_aoi_bounds_crs_defaults_to_4326():
         )
 
     assert _fake_mosaic_fetch.last_call["bbox_crs"] == "EPSG:4326"
+
+
+def test_tile_reproject_handles_rgba_tiles_correctly():
+    """contextily always returns 4-band RGBA tiles (see _fake_bounds2img's
+    docstring), never plain 3-band RGB -- the basemap-imagery reprojection
+    step must explicitly drop the alpha band before reprojecting, or a
+    band-count mismatch between the (4-band) source and (3-band)
+    destination raises `ValueError: Invalid destination shape` inside
+    rasterio's reproject(). Regression test for exactly that bug."""
+    with patch.dict("TerraTexture.basemap._AOI_PRODUCTS", {"arcticdem": _fake_mosaic_fetch}), \
+         patch("contextily.bounds2img", side_effect=_fake_bounds2img), \
+         patch("contextily.providers") as mock_providers:
+        mock_providers.Esri.WorldImagery = MagicMock(attribution="")
+
+        _fig, _ax, layers = plot_dem_basemap_luminosity_relief(
+            aoi_bounds=(-10, 50, -5, 55),
+            show=False,
+        )
+
+    assert layers["basemap"].shape[-1] == 3
+    assert layers["final"].shape[-1] == 3

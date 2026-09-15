@@ -217,6 +217,7 @@ def plot_dem_basemap_luminosity_relief(
         'relief_luminosity', 'luminosity_composite', 'final' arrays, for
         inspecting or re-blending any individual stage.
     """
+    import os
     import rasterio
     from rasterio.warp import calculate_default_transform, reproject, Resampling, transform_bounds
     from rasterio.transform import array_bounds, from_bounds
@@ -236,7 +237,6 @@ def plot_dem_basemap_luminosity_relief(
         # contextily's default cache is a tempdir wiped at process exit
         # (contextily.tile._clear_cache via atexit) -- every fresh
         # process is a cold cache unless we point it somewhere durable.
-        import os
         os.makedirs(os.path.expanduser(tile_cache_dir), exist_ok=True)
         ctx.set_cache_dir(os.path.expanduser(tile_cache_dir))
 
@@ -345,19 +345,36 @@ def plot_dem_basemap_luminosity_relief(
         )
 
     with _timer("tile_reproject"):
-        basemap_rgb = np.empty((height, width, 3), dtype=np.float32)
-        for b in range(3):
-            band_dst = np.empty((height, width), dtype=np.float32)
-            reproject(
-                source=basemap_3857[:, :, b].astype(np.float32),
-                destination=band_dst,
-                src_transform=bm_transform,
-                src_crs="EPSG:3857",
-                dst_transform=transform,
-                dst_crs=target_crs,
-                resampling=Resampling.bilinear,
-            )
-            basemap_rgb[:, :, b] = band_dst
+        # single multi-band reproject() call instead of 3 separate
+        # single-band calls -- rasterio.warp.reproject() accepts a 3-D
+        # (bands, rows, cols) ndarray directly (band-first, hence the
+        # moveaxis in/out of contextily's band-last (rows, cols, bands)
+        # convention), doing all bands as one GDAL warp operation with
+        # num_threads instead of 3 separate Python-level calls.
+        #
+        # [:, :, :3] matters: contextily always internally converts
+        # fetched tiles via `Image.open(...).convert("RGBA")` (see
+        # contextily/tile.py), so basemap_3857 is 4-band (RGBA), not
+        # 3-band -- the old per-band loop implicitly dropped alpha by
+        # only looping `for b in range(3)`; this keeps that same
+        # RGB-only behaviour explicit rather than accidentally handing
+        # reproject() a 4-band source against a 3-band destination
+        # (which rasterio rejects with "Invalid destination shape").
+        basemap_src = np.ascontiguousarray(
+            np.moveaxis(basemap_3857[:, :, :3].astype(np.float32), 2, 0)
+        )  # (3, H_src, W_src)
+        basemap_dst = np.empty((3, height, width), dtype=np.float32)
+        reproject(
+            source=basemap_src,
+            destination=basemap_dst,
+            src_transform=bm_transform,
+            src_crs="EPSG:3857",
+            dst_transform=transform,
+            dst_crs=target_crs,
+            resampling=Resampling.bilinear,
+            num_threads=os.cpu_count() or 1,
+        )
+        basemap_rgb = np.moveaxis(basemap_dst, 0, 2)  # back to (H, W, 3)
         basemap_rgb = np.clip(basemap_rgb / 255.0, 0, 1)
 
     with _timer("final_blend"):
