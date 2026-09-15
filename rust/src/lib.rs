@@ -36,6 +36,7 @@
 use ndarray::{Array2, Array3, ArrayView2, ArrayView3, Zip};
 use numpy::{IntoPyArray, PyArray2, PyArray3, PyReadonlyArray2, PyReadonlyArray3};
 use pyo3::prelude::*;
+use rayon::prelude::*;
 
 // TODO(benchmark): this is a guess, not a measurement. Run `cargo bench`
 // and replace it with whatever `blend_bench.rs` actually finds as the
@@ -182,6 +183,184 @@ pub fn luminosity_blend_core(backdrop_rgb: ArrayView3<f32>, luminosity: ArrayVie
     }
 }
 
+// ============================================================================
+// Curvature (profile/planform) + hillshade -- fused DEM-derivative kernels.
+//
+// Mirrors TerraTexture.derivatives exactly: same "gradient of gradient"
+// approximation (np.gradient applied twice), same edge_order=1 boundary
+// handling (one-sided forward/backward differences at the array edges,
+// second-order central differences everywhere else -- numpy's default),
+// same Zevenbergen & Thorne curvature formulas. Verified bit-parity
+// against derivatives.py in tests/test_derivatives_rust.py.
+//
+// Callers are responsible for nan-filling the DEM first (derivatives.py's
+// _fill_nan_nearest) and re-masking the NaN/void cells afterwards -- same
+// division of labour as blend.py's Rust dispatch: Rust owns the plain
+// numeric math on a clean float32 array, Python owns the NaN bookkeeping.
+// ============================================================================
+
+/// numpy-compatible `np.gradient(arr, spacing)` along axis 0 (rows) and
+/// axis 1 (columns), default `edge_order=1`: one-sided forward/backward
+/// difference at the first/last index of each axis, second-order central
+/// difference everywhere in between. Returns (d/d_axis0, d/d_axis1) --
+/// same order as numpy's `zy, zx = np.gradient(dem, cellsize)`.
+fn gradient2d(arr: ArrayView2<f32>, spacing: f32) -> (Array2<f32>, Array2<f32>) {
+    let (h, w) = arr.dim();
+    let mut d_axis0 = Array2::<f32>::zeros((h, w));
+    let mut d_axis1 = Array2::<f32>::zeros((h, w));
+
+    // axis 0 (down rows), column by column
+    if h == 1 {
+        // np.gradient on a length-1 axis returns zeros
+        d_axis0.fill(0.0);
+    } else {
+        for j in 0..w {
+            d_axis0[[0, j]] = (arr[[1, j]] - arr[[0, j]]) / spacing;
+            d_axis0[[h - 1, j]] = (arr[[h - 1, j]] - arr[[h - 2, j]]) / spacing;
+        }
+        for i in 1..h - 1 {
+            for j in 0..w {
+                d_axis0[[i, j]] = (arr[[i + 1, j]] - arr[[i - 1, j]]) / (2.0 * spacing);
+            }
+        }
+    }
+
+    // axis 1 (across columns), row by row
+    if w == 1 {
+        d_axis1.fill(0.0);
+    } else {
+        for i in 0..h {
+            d_axis1[[i, 0]] = (arr[[i, 1]] - arr[[i, 0]]) / spacing;
+            d_axis1[[i, w - 1]] = (arr[[i, w - 1]] - arr[[i, w - 2]]) / spacing;
+            for j in 1..w - 1 {
+                d_axis1[[i, j]] = (arr[[i, j + 1]] - arr[[i, j - 1]]) / (2.0 * spacing);
+            }
+        }
+    }
+
+    (d_axis0, d_axis1)
+}
+
+#[inline]
+fn curvature_pixel(p: f32, q: f32, r: f32, t: f32, s: f32) -> (f32, f32) {
+    let p2q2 = p * p + q * q;
+    if p2q2 < 1e-9 {
+        return (0.0, 0.0); // flat cell -- matches derivatives.py's `flat` mask
+    }
+    let profile_raw = -(r * p * p + 2.0 * s * p * q + t * q * q) / (p2q2 * (1.0 + p2q2).powf(1.5));
+    let planform_raw = -(r * q * q - 2.0 * s * p * q + t * p * p) / p2q2.powf(1.5);
+
+    // matches np.nan_to_num(..., nan=0.0, posinf=0.0, neginf=0.0)
+    let clean = |v: f32| if v.is_finite() { v } else { 0.0 };
+    (clean(profile_raw), clean(planform_raw))
+}
+
+/// Pure computation: profile + planform curvature. `dem` must already be
+/// NaN-free (caller nan-fills; see module note above). Matches
+/// `derivatives.py`'s `curvatures()` (minus its NaN re-masking, which
+/// stays the caller's job) exactly.
+pub fn curvatures_core(
+    dem: ArrayView2<f32>,
+    cellsize: f32,
+    profile_out: &mut Array2<f32>,
+    planform_out: &mut Array2<f32>,
+) {
+    let (zy, zx) = gradient2d(dem, cellsize);
+    let (zxy, zxx) = gradient2d(zx.view(), cellsize);
+    let (zyy, _zyx) = gradient2d(zy.view(), cellsize); // zyx discarded, matches derivatives.py
+
+    let n = dem.len();
+    // 2 outputs + 5 inputs = 7 producers, one over ndarray::Zip's max
+    // arity of 6 -- fall back to plain contiguous slices + rayon here
+    // instead (all arrays are freshly `zeros()`-allocated, hence
+    // standard/C-contiguous, so `.as_slice()` is always `Some`).
+    let zx_s = zx.as_slice().expect("gradient2d output not contiguous");
+    let zy_s = zy.as_slice().expect("gradient2d output not contiguous");
+    let zxx_s = zxx.as_slice().expect("gradient2d output not contiguous");
+    let zyy_s = zyy.as_slice().expect("gradient2d output not contiguous");
+    let zxy_s = zxy.as_slice().expect("gradient2d output not contiguous");
+    let profile_s = profile_out.as_slice_mut().expect("profile_out not contiguous");
+    let planform_s = planform_out.as_slice_mut().expect("planform_out not contiguous");
+
+    let compute = |i: usize, po: &mut f32, plo: &mut f32| {
+        let (profile, planform) = curvature_pixel(zx_s[i], zy_s[i], zxx_s[i], zyy_s[i], zxy_s[i]);
+        *po = profile;
+        *plo = planform;
+    };
+
+    if n >= PARALLEL_THRESHOLD {
+        profile_s
+            .par_iter_mut()
+            .zip(planform_s.par_iter_mut())
+            .enumerate()
+            .for_each(|(i, (po, plo))| compute(i, po, plo));
+    } else {
+        profile_s
+            .iter_mut()
+            .zip(planform_s.iter_mut())
+            .enumerate()
+            .for_each(|(i, (po, plo))| compute(i, po, plo));
+    }
+}
+
+#[inline]
+fn hillshade_pixel(zx: f32, zy: f32, sin_az: f32, cos_az: f32, sin_alt: f32, cos_alt: f32) -> f32 {
+    // Algebraic expansion of the original
+    //   slope = pi/2 - atan(hypot(zx, zy))
+    //   aspect = atan2(-zx, zy)
+    //   shaded = sin(alt)*sin(slope) + cos(alt)*cos(slope)*cos(az - aspect)
+    // using sin(atan(g)) = g/sqrt(1+g^2), cos(atan(g)) = 1/sqrt(1+g^2),
+    // and cos(az-aspect) = cos(az)cos(aspect) + sin(az)sin(aspect) with
+    // sin(aspect) = -zx/g, cos(aspect) = zy/g (g = hypot(zx, zy)). The
+    // factor of `g` cancels completely, leaving one sqrt and no
+    // atan/atan2/sin(slope)/cos(slope) per pixel at all -- verified
+    // bit-for-bit (float32 tolerance) against derivatives.py's original
+    // formula in tests/test_derivatives_rust.py, including the flat
+    // (zx=zy=0) case, which needs no special-casing here since
+    // sqrt(1+0+0)=1 rather than a 0/0 from hypot(0,0).
+    let denom = (1.0 + zx * zx + zy * zy).sqrt();
+    let shaded = (sin_alt + cos_alt * (cos_az * zy - sin_az * zx)) / denom;
+    shaded.clamp(0.0, 1.0)
+}
+
+/// Pure computation: hillshade. `dem` must already be NaN-free (see
+/// module note above). `azimuth`/`altitude` in degrees, matching
+/// `derivatives.py`'s `hillshade()` signature exactly (including its
+/// az = 360 - azimuth + 90 convention).
+pub fn hillshade_core(dem: ArrayView2<f32>, cellsize: f32, azimuth: f32, altitude: f32, out: &mut Array2<f32>) {
+    let (zy, zx) = gradient2d(dem, cellsize);
+    let az = (360.0 - azimuth + 90.0).to_radians();
+    let alt = altitude.to_radians();
+    // sin_cos() computes both in one call and, more importantly, these
+    // are computed ONCE for the whole DEM -- not per pixel like the
+    // original az.sin()/alt.cos()/etc. calls inside the old
+    // hillshade_pixel were (a much bigger win than the sin_cos()
+    // fusion itself: 4 trig calls total instead of up to 2*H*W).
+    let (sin_az, cos_az) = az.sin_cos();
+    let (sin_alt, cos_alt) = alt.sin_cos();
+
+    let (h, w) = dem.dim();
+    let n = h * w;
+    let combine = |o: &mut f32, &zx: &f32, &zy: &f32| {
+        *o = hillshade_pixel(zx, zy, sin_az, cos_az, sin_alt, cos_alt);
+    };
+    let z = Zip::from(out).and(&zx).and(&zy);
+    if n >= PARALLEL_THRESHOLD {
+        z.par_for_each(combine);
+    } else {
+        z.for_each(combine);
+    }
+}
+
+// to REMOVE GIL since we're in Rust only... we can use PyO3 idiom Python::allow_threads
+// Release the GIL for the actual compute: soft_light_core may fan
+// out across rayon's thread pool, and none of that work touches
+// any Python object (a/b/out are plain ndarray views/buffers, not
+// PyAny) -- so there's no reason another Python thread (e.g. a
+// contextily tile-fetch thread) should be blocked from running
+// while this executes. GIL is re-acquired automatically before
+// this closure returns and `out` gets wrapped back into a PyArray.
+
 #[pyfunction]
 fn soft_light<'py>(
     py: Python<'py>,
@@ -191,7 +370,9 @@ fn soft_light<'py>(
     let a = base.as_array();
     let b = blend.as_array();
     let mut out = Array2::<f32>::zeros(a.raw_dim());
-    soft_light_core(a, b, &mut out);
+    py.allow_threads(|| {
+        soft_light_core(a, b, &mut out);
+    });
     out.into_pyarray_bound(py)
 }
 
@@ -204,7 +385,40 @@ fn luminosity_blend<'py>(
     let backdrop = backdrop_rgb.as_array();
     let lum = luminosity.as_array();
     let mut out = Array3::<f32>::zeros(backdrop.raw_dim());
-    luminosity_blend_core(backdrop, lum, &mut out);
+    py.allow_threads(|| {
+        luminosity_blend_core(backdrop, lum, &mut out);
+    });
+    out.into_pyarray_bound(py)
+}
+
+#[pyfunction]
+fn curvatures<'py>(
+    py: Python<'py>,
+    dem: PyReadonlyArray2<'py, f32>,
+    cellsize: f32,
+) -> (Bound<'py, PyArray2<f32>>, Bound<'py, PyArray2<f32>>) {
+    let d = dem.as_array();
+    let mut profile = Array2::<f32>::zeros(d.raw_dim());
+    let mut planform = Array2::<f32>::zeros(d.raw_dim());
+    py.allow_threads(|| {
+        curvatures_core(d, cellsize, &mut profile, &mut planform);
+    });
+    (profile.into_pyarray_bound(py), planform.into_pyarray_bound(py))
+}
+
+#[pyfunction]
+fn hillshade<'py>(
+    py: Python<'py>,
+    dem: PyReadonlyArray2<'py, f32>,
+    cellsize: f32,
+    azimuth: f32,
+    altitude: f32,
+) -> Bound<'py, PyArray2<f32>> {
+    let d = dem.as_array();
+    let mut out = Array2::<f32>::zeros(d.raw_dim());
+    py.allow_threads(|| {
+        hillshade_core(d, cellsize, azimuth, altitude, &mut out);
+    });
     out.into_pyarray_bound(py)
 }
 
@@ -212,5 +426,7 @@ fn luminosity_blend<'py>(
 fn terra_texture_rs(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(soft_light, m)?)?;
     m.add_function(wrap_pyfunction!(luminosity_blend, m)?)?;
+    m.add_function(wrap_pyfunction!(curvatures, m)?)?;
+    m.add_function(wrap_pyfunction!(hillshade, m)?)?;
     Ok(())
 }

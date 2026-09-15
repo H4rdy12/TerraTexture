@@ -7,6 +7,9 @@ uses `requests` (via TerraTexture.sources) to query PGC's public STAC
 API -- no signup, no API key, no local software required.
 """
 
+import time
+from collections import OrderedDict
+
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -20,6 +23,53 @@ _AOI_PRODUCTS = {
     "arcticdem": arcticdem_mosaic,
     "rema": rema_mosaic,
 }
+
+
+class _StageTimer:
+    """Lightweight stage timer for `plot_dem_basemap_luminosity_relief(
+    profile=True)`. Not a general profiler -- cProfile (`%prun`) or
+    line_profiler (`%lprun`) are the right tools for a line-by-line
+    breakdown, including into rasterio/contextily internals. This is
+    just enough to answer "which conceptual STAGE of this specific
+    pipeline is slow" (DEM fetch vs. curvature/hillshade compute vs.
+    tile fetch vs. reprojection vs. blending vs. plotting) with zero
+    extra installs. Overhead is a couple of `perf_counter()` calls per
+    stage, negligible next to anything actually worth timing here.
+
+    Usage: `with timer("stage_name"): ...` -- multiple `with` blocks
+    under the same name accumulate (e.g. if a stage is naturally split
+    across a couple of non-contiguous lines)."""
+
+    def __init__(self):
+        self.stages = OrderedDict()
+        self._current = None
+
+    def __call__(self, name):
+        self._current = name
+        return self
+
+    def __enter__(self):
+        self._t0 = time.perf_counter()
+        return self
+
+    def __exit__(self, *exc_info):
+        elapsed = time.perf_counter() - self._t0
+        self.stages[self._current] = self.stages.get(self._current, 0.0) + elapsed
+        return False
+
+    def report(self):
+        total = sum(self.stages.values())
+        if total <= 0:
+            return
+        width = max(len(name) for name in self.stages) + 1
+        header = f"{'stage':<{width}} {'seconds':>10} {'% of total':>12}"
+        print(f"\n{header}")
+        print("-" * len(header))
+        for name, seconds in sorted(self.stages.items(), key=lambda kv: kv[1], reverse=True):
+            pct = 100 * seconds / total
+            print(f"{name:<{width}} {seconds:>10.3f} {pct:>11.1f}%")
+        print("-" * len(header))
+        print(f"{'TOTAL':<{width}} {total:>10.3f} {100.0:>11.1f}%\n")
 
 
 def plot_dem_basemap_luminosity_relief(
@@ -41,6 +91,7 @@ def plot_dem_basemap_luminosity_relief(
     show=True,
     tile_cache_dir=None,
     tile_connections=16,
+    profile=False,
 ):
     """Drape a DEM's relief over basemap imagery using the ArcGIS Pro /
     Photoshop "luminosity blend" recipe, layer stack top -> bottom:
@@ -132,9 +183,7 @@ def plot_dem_basemap_luminosity_relief(
         basemap's own lightness is left untouched), so it's rarely
         useful on its own -- this is a blend control, not a fade-out.
     figsize : tuple
-    out_fig : str or None
-        Path to save the figure to (via plt.savefig), or None to skip
-        saving.
+    out_png : str or None
     show : bool
     tile_cache_dir : str or None
         Directory to persist downloaded basemap tiles across process
@@ -151,6 +200,15 @@ def plot_dem_basemap_luminosity_relief(
         cost at high zoom, since tile count grows ~4x per zoom level.
         16 is a reasonable default; check your tile provider's usage
         policy before going higher (some, e.g. OSM, cap this at 2).
+    profile : bool
+        If True, print a per-stage timing breakdown (DEM fetch,
+        curvature compute, hillshade compute, stretch/normalize, relief
+        blend, basemap tile fetch, tile reprojection, final blend,
+        plotting) after the figure is built -- see `_StageTimer` above.
+        Cheap enough to leave on while iterating; the timing itself
+        adds negligible overhead. For a finer, line-by-line breakdown
+        (including into rasterio/contextily internals), use IPython's
+        `%lprun -f plot_dem_basemap_luminosity_relief ...` instead.
 
     Returns
     -------
@@ -159,10 +217,18 @@ def plot_dem_basemap_luminosity_relief(
         'relief_luminosity', 'luminosity_composite', 'final' arrays, for
         inspecting or re-blending any individual stage.
     """
+    import os
     import rasterio
     from rasterio.warp import calculate_default_transform, reproject, Resampling, transform_bounds
     from rasterio.transform import array_bounds, from_bounds
     import contextily as ctx
+
+    # captured before anything below reassigns the (unfortunately
+    # same-named) local `profile` curvature-array variable a few lines
+    # down -- keep using `_profile_enabled` for the bool from here on,
+    # never the bare `profile` name, inside this function.
+    _profile_enabled = profile
+    _timer = _StageTimer()
 
     if source is None:
         source = ctx.providers.Esri.WorldImagery
@@ -171,7 +237,6 @@ def plot_dem_basemap_luminosity_relief(
         # contextily's default cache is a tempdir wiped at process exit
         # (contextily.tile._clear_cache via atexit) -- every fresh
         # process is a cold cache unless we point it somewhere durable.
-        import os
         os.makedirs(os.path.expanduser(tile_cache_dir), exist_ok=True)
         ctx.set_cache_dir(os.path.expanduser(tile_cache_dir))
 
@@ -191,137 +256,166 @@ def plot_dem_basemap_luminosity_relief(
 
     # -- open the DEM (path, mosaic list, or public STAC AOI query);
     #    only reproject if it isn't already in target_crs --
-    if aoi_bounds is not None:
-        fetch_mosaic = _AOI_PRODUCTS[dem_product]
-        dem, cellsize, transform, mosaic_crs = fetch_mosaic(
-            aoi_bounds,
-            resolution=arcticdem_resolution,
-            bbox_crs=aoi_bounds_crs,
-            target_crs=target_crs,
-        )
-        height, width = dem.shape
-        target_crs = str(mosaic_crs)
-    elif isinstance(dem_path, (list, tuple)):
-        dem, cellsize, transform, mosaic_crs = load_dem_mosaic(dem_path, target_crs=target_crs)
-        height, width = dem.shape
-        if str(mosaic_crs).upper() != target_crs.upper():
-            # load_dem_mosaic warped everything into mosaic_crs already;
-            # honour whatever CRS it actually merged into
+    with _timer("dem_fetch"):
+        if aoi_bounds is not None:
+            fetch_mosaic = _AOI_PRODUCTS[dem_product]
+            dem, cellsize, transform, mosaic_crs = fetch_mosaic(
+                aoi_bounds,
+                resolution=arcticdem_resolution,
+                bbox_crs=aoi_bounds_crs,
+                target_crs=target_crs,
+            )
+            height, width = dem.shape
             target_crs = str(mosaic_crs)
-    else:
-        with _open_raster(dem_path) as src:
-            if src.crs is not None and str(src.crs).upper() == target_crs.upper():
-                dem = src.read(1).astype(np.float32)
-                transform, width, height = src.transform, src.width, src.height
-                if src.nodata is not None:
-                    dem = np.where(dem == src.nodata, np.nan, dem)
-            else:
-                transform, width, height = calculate_default_transform(
-                    src.crs, target_crs, src.width, src.height, *src.bounds
-                )
-                dem = np.full((height, width), np.nan, dtype=np.float32)
-                reproject(
-                    source=rasterio.band(src, 1),
-                    destination=dem,
-                    src_transform=src.transform,
-                    src_crs=src.crs,
-                    dst_transform=transform,
-                    dst_crs=target_crs,
-                    src_nodata=src.nodata,
-                    dst_nodata=np.nan,
-                    resampling=Resampling.bilinear,
-                )
+        elif isinstance(dem_path, (list, tuple)):
+            dem, cellsize, transform, mosaic_crs = load_dem_mosaic(dem_path, target_crs=target_crs)
+            height, width = dem.shape
+            if str(mosaic_crs).upper() != target_crs.upper():
+                # load_dem_mosaic warped everything into mosaic_crs already;
+                # honour whatever CRS it actually merged into
+                target_crs = str(mosaic_crs)
+        else:
+            with _open_raster(dem_path) as src:
+                if src.crs is not None and str(src.crs).upper() == target_crs.upper():
+                    dem = src.read(1).astype(np.float32)
+                    transform, width, height = src.transform, src.width, src.height
+                    if src.nodata is not None:
+                        dem = np.where(dem == src.nodata, np.nan, dem)
+                else:
+                    transform, width, height = calculate_default_transform(
+                        src.crs, target_crs, src.width, src.height, *src.bounds
+                    )
+                    dem = np.full((height, width), np.nan, dtype=np.float32)
+                    reproject(
+                        source=rasterio.band(src, 1),
+                        destination=dem,
+                        src_transform=src.transform,
+                        src_crs=src.crs,
+                        dst_transform=transform,
+                        dst_crs=target_crs,
+                        src_nodata=src.nodata,
+                        dst_nodata=np.nan,
+                        resampling=Resampling.bilinear,
+                    )
     cellsize = transform.a
     west, south, east, north = array_bounds(height, width, transform)
 
     # -- relief components, computed at the DEM's own native resolution --
-    profile, planform = curvatures(dem, cellsize)
-    hs = hillshade(dem, cellsize, azimuth=azimuth, altitude=altitude)
+    with _timer("curvature_compute"):
+        profile, planform = curvatures(dem, cellsize)
+    with _timer("hillshade_compute"):
+        hs = hillshade(dem, cellsize, azimuth=azimuth, altitude=altitude)
 
-    profile_grey = stretch_std(profile, curvature_std)
-    planform_grey = stretch_std(planform, curvature_std)
-    hs_grey = stretch_std(hs, hillshade_std)
-    dem_grey = normalize(dem)  # white->black elevation
+    with _timer("stretch_normalize"):
+        profile_grey = stretch_std(profile, curvature_std)
+        planform_grey = stretch_std(planform, curvature_std)
+        hs_grey = stretch_std(hs, hillshade_std)
+        dem_grey = normalize(dem)  # white->black elevation
 
     # -- group stack, bottom to top, each soft-lighting onto the composite below --
-    curvature_combo = soft_light(profile_grey, planform_grey)      # profile (X) planform
-    group_composite = soft_light(hs_grey, curvature_combo)          # curvature over hillshade
-    relief_luminosity = soft_light(group_composite, dem_grey)       # DEM over that -> final grey
+    with _timer("relief_blend"):
+        curvature_combo = soft_light(profile_grey, planform_grey)      # profile (X) planform
+        group_composite = soft_light(hs_grey, curvature_combo)          # curvature over hillshade
+        relief_luminosity = soft_light(group_composite, dem_grey)       # DEM over that -> final grey
 
-    # texture-only luminosity (hillshade + curvature, no elevation): centred and
-    # locally-varying, without the broad monotonic darkening dem_grey imposes
-    # across low-elevation terrain -- exposed separately for burn_data_onto_relief
-    # so a burned data layer can show topographic texture without elevation
-    # crushing its colour at low elevation (see 'texture_luminosity' in layers)
-    texture_luminosity = np.nan_to_num(group_composite, nan=0.5)
+        # texture-only luminosity (hillshade + curvature, no elevation): centred and
+        # locally-varying, without the broad monotonic darkening dem_grey imposes
+        # across low-elevation terrain -- exposed separately for burn_data_onto_relief
+        # so a burned data layer can show topographic texture without elevation
+        # crushing its colour at low elevation (see 'texture_luminosity' in layers)
+        texture_luminosity = np.nan_to_num(group_composite, nan=0.5)
 
-    # NaNs (nodata/voids) shouldn't distort the blend maths; treat as neutral mid-grey
-    relief_luminosity = np.nan_to_num(relief_luminosity, nan=0.5)
+        # NaNs (nodata/voids) shouldn't distort the blend maths; treat as neutral mid-grey
+        relief_luminosity = np.nan_to_num(relief_luminosity, nan=0.5)
 
     # -- fetch basemap imagery (tile servers always serve EPSG:3857) then
     #    warp it onto the DEM's exact grid: same transform/shape/target_crs
     #    as everything else, so nothing needs resampling downstream --
-    lon_west, lat_south, lon_east, lat_north = transform_bounds(
-        target_crs, "EPSG:4326", west, south, east, north
-    )
-    basemap_3857, extent_3857 = ctx.bounds2img(
-        lon_west, lat_south, lon_east, lat_north, zoom=zoom, source=source, ll=True,
-        n_connections=tile_connections,
-    )
-    bm_west, bm_east, bm_south, bm_north = extent_3857
-    bm_transform = from_bounds(
-        bm_west, bm_south, bm_east, bm_north, basemap_3857.shape[1], basemap_3857.shape[0]
-    )
+    with _timer("tile_fetch"):
+        lon_west, lat_south, lon_east, lat_north = transform_bounds(
+            target_crs, "EPSG:4326", west, south, east, north
+        )
+        basemap_3857, extent_3857 = ctx.bounds2img(
+            lon_west, lat_south, lon_east, lat_north, zoom=zoom, source=source, ll=True,
+            n_connections=tile_connections,
+        )
+        bm_west, bm_east, bm_south, bm_north = extent_3857
+        bm_transform = from_bounds(
+            bm_west, bm_south, bm_east, bm_north, basemap_3857.shape[1], basemap_3857.shape[0]
+        )
 
-    basemap_rgb = np.empty((height, width, 3), dtype=np.float32)
-    for b in range(3):
-        band_dst = np.empty((height, width), dtype=np.float32)
+    with _timer("tile_reproject"):
+        # single multi-band reproject() call instead of 3 separate
+        # single-band calls -- rasterio.warp.reproject() accepts a 3-D
+        # (bands, rows, cols) ndarray directly (band-first, hence the
+        # moveaxis in/out of contextily's band-last (rows, cols, bands)
+        # convention), doing all bands as one GDAL warp operation with
+        # num_threads instead of 3 separate Python-level calls.
+        #
+        # [:, :, :3] matters: contextily always internally converts
+        # fetched tiles via `Image.open(...).convert("RGBA")` (see
+        # contextily/tile.py), so basemap_3857 is 4-band (RGBA), not
+        # 3-band -- the old per-band loop implicitly dropped alpha by
+        # only looping `for b in range(3)`; this keeps that same
+        # RGB-only behaviour explicit rather than accidentally handing
+        # reproject() a 4-band source against a 3-band destination
+        # (which rasterio rejects with "Invalid destination shape").
+        basemap_src = np.ascontiguousarray(
+            np.moveaxis(basemap_3857[:, :, :3].astype(np.float32), 2, 0)
+        )  # (3, H_src, W_src)
+        basemap_dst = np.empty((3, height, width), dtype=np.float32)
         reproject(
-            source=basemap_3857[:, :, b].astype(np.float32),
-            destination=band_dst,
+            source=basemap_src,
+            destination=basemap_dst,
             src_transform=bm_transform,
             src_crs="EPSG:3857",
             dst_transform=transform,
             dst_crs=target_crs,
             resampling=Resampling.bilinear,
+            num_threads=os.cpu_count() or 1,
         )
-        basemap_rgb[:, :, b] = band_dst
-    basemap_rgb = np.clip(basemap_rgb / 255.0, 0, 1)
+        basemap_rgb = np.moveaxis(basemap_dst, 0, 2)  # back to (H, W, 3)
+        basemap_rgb = np.clip(basemap_rgb / 255.0, 0, 1)
 
-    if relief_strength < 1.0:
-        basemap_luminosity = (
-            0.3 * basemap_rgb[..., 0] + 0.59 * basemap_rgb[..., 1] + 0.11 * basemap_rgb[..., 2]
-        )
-        target_luminosity = (
-            relief_strength * relief_luminosity + (1 - relief_strength) * basemap_luminosity
-        )
-    else:
-        target_luminosity = relief_luminosity
+    with _timer("final_blend"):
+        if relief_strength < 1.0:
+            basemap_luminosity = (
+                0.3 * basemap_rgb[..., 0] + 0.59 * basemap_rgb[..., 1] + 0.11 * basemap_rgb[..., 2]
+            )
+            target_luminosity = (
+                relief_strength * relief_luminosity + (1 - relief_strength) * basemap_luminosity
+            )
+        else:
+            target_luminosity = relief_luminosity
 
-    # -- group's own blend mode against the basemap below it: Luminosity --
-    luminosity_composite = luminosity_blend(basemap_rgb, target_luminosity)
+        # -- group's own blend mode against the basemap below it: Luminosity --
+        luminosity_composite = luminosity_blend(basemap_rgb, target_luminosity)
 
-    # -- topmost layer: imagery again, Soft Light, to restore colour punch --
-    final = soft_light(luminosity_composite, basemap_rgb)
+        # -- topmost layer: imagery again, Soft Light, to restore colour punch --
+        final = soft_light(luminosity_composite, basemap_rgb)
 
-    fig, ax = plt.subplots(figsize=figsize)
-    ax.imshow(final, extent=(west, east, south, north))
-    ax.set_xticks([])
-    ax.set_yticks([])
-    attribution = getattr(source, "attribution", "")
-    if attribution:
-        ax.text(
-            0.01, 0.01, attribution, transform=ax.transAxes,
-            fontsize=6, color="white", ha="left", va="bottom",
-            bbox=dict(facecolor="black", alpha=0.5, pad=1, linewidth=0),
-        )
-    plt.tight_layout()
+    with _timer("plotting"):
+        fig, ax = plt.subplots(figsize=figsize)
+        ax.imshow(final, extent=(west, east, south, north))
+        ax.set_xticks([])
+        ax.set_yticks([])
+        attribution = getattr(source, "attribution", "")
+        if attribution:
+            ax.text(
+                0.01, 0.01, attribution, transform=ax.transAxes,
+                fontsize=6, color="white", ha="left", va="bottom",
+                bbox=dict(facecolor="black", alpha=0.5, pad=1, linewidth=0),
+            )
+        plt.tight_layout()
 
-    if out_fig:
-        plt.savefig(out_fig, dpi=600)
-        print(f"Saved figure to {out_fig}")
-    if show:
-        plt.show()
+        if out_fig:
+            plt.savefig(out_fig, dpi=600)
+            print(f"Saved figure to {out_fig}")
+        if show:
+            plt.show()
+
+    if _profile_enabled:
+        _timer.report()
 
     layers = {
         "basemap": basemap_rgb,
@@ -355,6 +449,9 @@ def add_relief_basemap(
     curvature_std=4,
     hillshade_std=4,
     zorder=0,
+    tile_cache_dir=None,
+    tile_connections=16,
+    profile=False,
 ):
     """Build the luminosity-blended relief basemap ONCE, then stamp the
     same image onto one or more existing matplotlib Axes as a background
@@ -414,6 +511,9 @@ def add_relief_basemap(
         hillshade_std=hillshade_std,
         out_fig=None,
         show=False,
+        tile_cache_dir=tile_cache_dir,
+        tile_connections=tile_connections,
+        profile=profile,
     )
     plt.close(_fig)  # throwaway standalone figure -- only the arrays matter here
 

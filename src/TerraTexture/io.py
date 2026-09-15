@@ -134,6 +134,49 @@ def _open_raster_sync(path):
         return rasterio.open(path)
 
 
+def _read_window_to_memory(src, window, nodata):
+    """Read `window` from `src` (an already-open dataset or WarpedVRT)
+    fully into RAM as a new, tiny in-memory dataset covering just that
+    window. Used by load_dem_mosaic() to turn the slow, network-bound
+    part of a merge (each source's windowed read) into something that
+    can run concurrently across tiles via a thread pool, while leaving
+    rasterio.merge.merge() itself untouched -- it still does its own
+    per-source `.read()` calls internally, but against these local,
+    already-resident-in-RAM datasets instead of the original remote
+    ones, so those reads become effectively free.
+
+    `boundless=True` matters here: `window` comes from the AOI's shared
+    merge_bounds, which -- for any tile that doesn't cover the whole
+    AOI by itself (the normal case when merging neighbouring tiles) --
+    extends beyond that individual tile's own extent. `boundless=True`
+    fills the out-of-range portion with `nodata` (or 0) instead of
+    raising, matching what a windowed read against the full mosaic
+    would have produced anyway."""
+    from rasterio.io import MemoryFile
+
+    fill_value = nodata if nodata is not None else 0
+    data = src.read(window=window, boundless=True, fill_value=fill_value)
+    win_transform = src.window_transform(window)
+
+    profile = src.profile.copy()
+    profile.update({
+        "driver": "GTiff",
+        "height": data.shape[1],
+        "width": data.shape[2],
+        "transform": win_transform,
+        "count": data.shape[0],
+    })
+    if nodata is not None:
+        profile["nodata"] = nodata
+
+    memfile = MemoryFile()
+    with memfile.open(**profile) as dst:
+        dst.write(data)
+    dataset = memfile.open()
+    dataset._terra_texture_memfile = memfile  # keep alive alongside dataset, same as _open_raster_sync
+    return dataset
+
+
 def load_dem_mosaic(paths, target_crs=None, bounds=None, bounds_crs="EPSG:4326"):
     """Merge two or more DEM tiles into a single seamless array (e.g.
     neighbouring ArcticDEM mosaic tiles). Any mix of plain rasters and
@@ -158,8 +201,15 @@ def load_dem_mosaic(paths, target_crs=None, bounds=None, bounds_crs="EPSG:4326")
         this means GDAL's windowed /vsicurl reads fetch only the
         intersecting portion, which can be dramatically less data than
         the tile's full footprint when the AOI is much smaller than the
-        tiles that happen to intersect it. None (the default) merges
-        each tile's full extent, matching the previous behaviour.
+        tiles that happen to intersect it. Those per-tile windowed reads
+        are ALSO done concurrently (one thread per tile) rather than one
+        at a time -- see `_read_window_to_memory()` -- since each is
+        independently network-bound. None (the default) merges each
+        tile's full extent directly through `rasterio.merge.merge()`
+        with no pre-fetch/parallelization, matching the previous
+        behaviour (parallelizing a handful of truly enormous full-tile
+        reads is a different tradeoff -- more peak memory for less
+        certain benefit -- so it's deliberately left alone here).
     bounds_crs : str
         CRS of `bounds`. Reprojected internally to whatever `target_crs`
         resolves to before being passed to the merge.
@@ -177,6 +227,7 @@ def load_dem_mosaic(paths, target_crs=None, bounds=None, bounds_crs="EPSG:4326")
     from rasterio.vrt import WarpedVRT
     from rasterio.enums import Resampling as ResamplingEnum
     from rasterio.warp import transform_bounds
+    from rasterio.windows import from_bounds as window_from_bounds
 
     paths = list(paths)
     if len(paths) < 2:
@@ -216,7 +267,28 @@ def load_dem_mosaic(paths, target_crs=None, bounds=None, bounds_crs="EPSG:4326")
         if bounds is not None:
             merge_bounds = transform_bounds(bounds_crs, target_crs, *bounds)
 
-        mosaic, transform = rio_merge(aligned, bounds=merge_bounds, nodata=nodata)
+        if merge_bounds is not None:
+            # The actual windowed pixel read is the network-bound part;
+            # rasterio.merge.merge() itself reads its sources ONE AT A
+            # TIME internally, so with the AOI clip in play (the case
+            # this branch handles), pre-fetch every tile's window
+            # concurrently first, then hand merge() fully in-memory
+            # sources so its own internal reads are effectively free.
+            windows = [
+                window_from_bounds(*merge_bounds, transform=s.transform) for s in aligned
+            ]
+            with ThreadPoolExecutor(max_workers=min(8, len(aligned))) as executor:
+                prefetched = list(executor.map(
+                    lambda pair: _read_window_to_memory(pair[0], pair[1], nodata),
+                    zip(aligned, windows),
+                ))
+            for p in prefetched:
+                stack.callback(p.close)
+            merge_sources = prefetched
+        else:
+            merge_sources = aligned
+
+        mosaic, transform = rio_merge(merge_sources, bounds=merge_bounds, nodata=nodata)
 
     dem = mosaic[0].astype(np.float32)
     if nodata is not None:
