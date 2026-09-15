@@ -33,8 +33,8 @@ try:
     import terra_texture_rs as _rust
 except ImportError:
     _rust = None
- 
- 
+
+
 def _is_fast_path_2d_f32(arr):
     return (
         _rust is not None
@@ -55,7 +55,7 @@ def curvatures(dem, cellsize):
     """Return (profile_curvature, planform_curvature) arrays, same shape as
     dem. NaN cells in `dem` (nodata/voids) are nearest-filled for the
     calculation and set back to NaN in the output.
-    
+
     if _is_fast_path_2d_f32(dem_filled):
     profile, planform = _rust.curvatures(np.ascontiguousarray(dem_filled), float(cellsize))
     """
@@ -87,7 +87,7 @@ def hillshade(dem, cellsize, azimuth=315, altitude=45):
     Return a hillshade array, same shape as dem, values in [0, 1].
     NaN cells in `dem` (nodata/voids) are nearest-filled for the
     calculation and set back to NaN in the output.
- 
+
     Dispatches to the Rust kernel (see module docstring) when available
     and `dem` is a plain float32 2D array; otherwise uses the pure-numpy
     implementation below. Same result either way.
