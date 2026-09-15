@@ -304,10 +304,22 @@ pub fn curvatures_core(
 }
 
 #[inline]
-fn hillshade_pixel(zx: f32, zy: f32, az: f32, alt: f32) -> f32 {
-    let slope = std::f32::consts::FRAC_PI_2 - (zx.hypot(zy)).atan();
-    let aspect = (-zx).atan2(zy);
-    let shaded = alt.sin() * slope.sin() + alt.cos() * slope.cos() * (az - aspect).cos();
+fn hillshade_pixel(zx: f32, zy: f32, sin_az: f32, cos_az: f32, sin_alt: f32, cos_alt: f32) -> f32 {
+    // Algebraic expansion of the original
+    //   slope = pi/2 - atan(hypot(zx, zy))
+    //   aspect = atan2(-zx, zy)
+    //   shaded = sin(alt)*sin(slope) + cos(alt)*cos(slope)*cos(az - aspect)
+    // using sin(atan(g)) = g/sqrt(1+g^2), cos(atan(g)) = 1/sqrt(1+g^2),
+    // and cos(az-aspect) = cos(az)cos(aspect) + sin(az)sin(aspect) with
+    // sin(aspect) = -zx/g, cos(aspect) = zy/g (g = hypot(zx, zy)). The
+    // factor of `g` cancels completely, leaving one sqrt and no
+    // atan/atan2/sin(slope)/cos(slope) per pixel at all -- verified
+    // bit-for-bit (float32 tolerance) against derivatives.py's original
+    // formula in tests/test_derivatives_rust.py, including the flat
+    // (zx=zy=0) case, which needs no special-casing here since
+    // sqrt(1+0+0)=1 rather than a 0/0 from hypot(0,0).
+    let denom = (1.0 + zx * zx + zy * zy).sqrt();
+    let shaded = (sin_alt + cos_alt * (cos_az * zy - sin_az * zx)) / denom;
     shaded.clamp(0.0, 1.0)
 }
 
@@ -319,11 +331,18 @@ pub fn hillshade_core(dem: ArrayView2<f32>, cellsize: f32, azimuth: f32, altitud
     let (zy, zx) = gradient2d(dem, cellsize);
     let az = (360.0 - azimuth + 90.0).to_radians();
     let alt = altitude.to_radians();
+    // sin_cos() computes both in one call and, more importantly, these
+    // are computed ONCE for the whole DEM -- not per pixel like the
+    // original az.sin()/alt.cos()/etc. calls inside the old
+    // hillshade_pixel were (a much bigger win than the sin_cos()
+    // fusion itself: 4 trig calls total instead of up to 2*H*W).
+    let (sin_az, cos_az) = az.sin_cos();
+    let (sin_alt, cos_alt) = alt.sin_cos();
 
     let (h, w) = dem.dim();
     let n = h * w;
     let combine = |o: &mut f32, &zx: &f32, &zy: &f32| {
-        *o = hillshade_pixel(zx, zy, az, alt);
+        *o = hillshade_pixel(zx, zy, sin_az, cos_az, sin_alt, cos_alt);
     };
     let z = Zip::from(out).and(&zx).and(&zy);
     if n >= PARALLEL_THRESHOLD {
