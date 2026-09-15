@@ -182,7 +182,7 @@ pub fn luminosity_blend_core(backdrop_rgb: ArrayView3<f32>, luminosity: ArrayVie
         luminosity_blend_serial(backdrop_rgb, luminosity, out);
     }
 }
- 
+
 // ============================================================================
 // Curvature (profile/planform) + hillshade -- fused DEM-derivative kernels.
 //
@@ -198,7 +198,7 @@ pub fn luminosity_blend_core(backdrop_rgb: ArrayView3<f32>, luminosity: ArrayVie
 // division of labour as blend.py's Rust dispatch: Rust owns the plain
 // numeric math on a clean float32 array, Python owns the NaN bookkeeping.
 // ============================================================================
- 
+
 /// numpy-compatible `np.gradient(arr, spacing)` along axis 0 (rows) and
 /// axis 1 (columns), default `edge_order=1`: one-sided forward/backward
 /// difference at the first/last index of each axis, second-order central
@@ -208,7 +208,7 @@ fn gradient2d(arr: ArrayView2<f32>, spacing: f32) -> (Array2<f32>, Array2<f32>) 
     let (h, w) = arr.dim();
     let mut d_axis0 = Array2::<f32>::zeros((h, w));
     let mut d_axis1 = Array2::<f32>::zeros((h, w));
- 
+
     // axis 0 (down rows), column by column
     if h == 1 {
         // np.gradient on a length-1 axis returns zeros
@@ -224,7 +224,7 @@ fn gradient2d(arr: ArrayView2<f32>, spacing: f32) -> (Array2<f32>, Array2<f32>) 
             }
         }
     }
- 
+
     // axis 1 (across columns), row by row
     if w == 1 {
         d_axis1.fill(0.0);
@@ -237,10 +237,10 @@ fn gradient2d(arr: ArrayView2<f32>, spacing: f32) -> (Array2<f32>, Array2<f32>) 
             }
         }
     }
- 
+
     (d_axis0, d_axis1)
 }
- 
+
 #[inline]
 fn curvature_pixel(p: f32, q: f32, r: f32, t: f32, s: f32) -> (f32, f32) {
     let p2q2 = p * p + q * q;
@@ -249,12 +249,12 @@ fn curvature_pixel(p: f32, q: f32, r: f32, t: f32, s: f32) -> (f32, f32) {
     }
     let profile_raw = -(r * p * p + 2.0 * s * p * q + t * q * q) / (p2q2 * (1.0 + p2q2).powf(1.5));
     let planform_raw = -(r * q * q - 2.0 * s * p * q + t * p * p) / p2q2.powf(1.5);
- 
+
     // matches np.nan_to_num(..., nan=0.0, posinf=0.0, neginf=0.0)
     let clean = |v: f32| if v.is_finite() { v } else { 0.0 };
     (clean(profile_raw), clean(planform_raw))
 }
- 
+
 /// Pure computation: profile + planform curvature. `dem` must already be
 /// NaN-free (caller nan-fills; see module note above). Matches
 /// `derivatives.py`'s `curvatures()` (minus its NaN re-masking, which
@@ -268,7 +268,7 @@ pub fn curvatures_core(
     let (zy, zx) = gradient2d(dem, cellsize);
     let (zxy, zxx) = gradient2d(zx.view(), cellsize);
     let (zyy, _zyx) = gradient2d(zy.view(), cellsize); // zyx discarded, matches derivatives.py
- 
+
     let n = dem.len();
     // 2 outputs + 5 inputs = 7 producers, one over ndarray::Zip's max
     // arity of 6 -- fall back to plain contiguous slices + rayon here
@@ -281,13 +281,13 @@ pub fn curvatures_core(
     let zxy_s = zxy.as_slice().expect("gradient2d output not contiguous");
     let profile_s = profile_out.as_slice_mut().expect("profile_out not contiguous");
     let planform_s = planform_out.as_slice_mut().expect("planform_out not contiguous");
- 
+
     let compute = |i: usize, po: &mut f32, plo: &mut f32| {
         let (profile, planform) = curvature_pixel(zx_s[i], zy_s[i], zxx_s[i], zyy_s[i], zxy_s[i]);
         *po = profile;
         *plo = planform;
     };
- 
+
     if n >= PARALLEL_THRESHOLD {
         profile_s
             .par_iter_mut()
@@ -302,7 +302,7 @@ pub fn curvatures_core(
             .for_each(|(i, (po, plo))| compute(i, po, plo));
     }
 }
- 
+
 #[inline]
 fn hillshade_pixel(zx: f32, zy: f32, az: f32, alt: f32) -> f32 {
     let slope = std::f32::consts::FRAC_PI_2 - (zx.hypot(zy)).atan();
@@ -310,22 +310,16 @@ fn hillshade_pixel(zx: f32, zy: f32, az: f32, alt: f32) -> f32 {
     let shaded = alt.sin() * slope.sin() + alt.cos() * slope.cos() * (az - aspect).cos();
     shaded.clamp(0.0, 1.0)
 }
- 
+
 /// Pure computation: hillshade. `dem` must already be NaN-free (see
 /// module note above). `azimuth`/`altitude` in degrees, matching
 /// `derivatives.py`'s `hillshade()` signature exactly (including its
 /// az = 360 - azimuth + 90 convention).
-pub fn hillshade_core(
-    dem: ArrayView2<f32>,
-    cellsize: f32,
-    azimuth: f32,
-    altitude: f32,
-    out: &mut Array2<f32>,
-) {
+pub fn hillshade_core(dem: ArrayView2<f32>, cellsize: f32, azimuth: f32, altitude: f32, out: &mut Array2<f32>) {
     let (zy, zx) = gradient2d(dem, cellsize);
     let az = (360.0 - azimuth + 90.0).to_radians();
     let alt = altitude.to_radians();
- 
+
     let (h, w) = dem.dim();
     let n = h * w;
     let combine = |o: &mut f32, &zx: &f32, &zy: &f32| {
@@ -392,7 +386,7 @@ fn curvatures<'py>(
     });
     (profile.into_pyarray_bound(py), planform.into_pyarray_bound(py))
 }
- 
+
 #[pyfunction]
 fn hillshade<'py>(
     py: Python<'py>,
