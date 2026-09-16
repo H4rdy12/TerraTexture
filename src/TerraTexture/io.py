@@ -7,11 +7,57 @@ Import this module on its own if all you need is to load a DEM.
 """
 
 import os
+import re
 import tarfile
 from contextlib import contextmanager
 
 import numpy as np
 from scipy.ndimage import gaussian_filter, distance_transform_edt
+
+
+# Matches both S3 URL styles GDAL/boto3 encounter in practice:
+#   virtual-hosted: https://<bucket>.s3.<region>.amazonaws.com/<key>
+#                   https://<bucket>.s3.amazonaws.com/<key>            (region-less, legacy/us-east-1)
+#   path-style:     https://s3.<region>.amazonaws.com/<bucket>/<key>
+_S3_VIRTUAL_HOSTED_RE = re.compile(
+    r"^https://(?P<bucket>[^./]+)\.s3(?:[.-](?P<region>[a-z0-9-]+))?\.amazonaws\.com/(?P<key>.+)$"
+)
+_S3_PATH_STYLE_RE = re.compile(
+    r"^https://s3(?:[.-][a-z0-9-]+)?\.amazonaws\.com/(?P<bucket>[^/]+)/(?P<key>.+)$"
+)
+
+
+def _https_s3_url_to_vsis3(url):
+    """Rewrite a plain HTTPS S3 URL (either virtual-hosted or path-style)
+    to GDAL's `/vsis3/<bucket>/<key>` virtual filesystem path, or return
+    `url` unchanged if it doesn't match either S3 URL shape (e.g. a
+    non-S3 HTTPS host, or an already-local path) -- always a safe no-op
+    passthrough for anything that isn't recognizably S3.
+
+    `/vsis3/` is GDAL's S3-aware I/O path, distinct from the generic
+    `/vsicurl/` driver plain `rasterio.open("https://...")` uses --
+    intended to reduce request overhead specifically for S3-hosted COGs
+    (PGC's ArcticDEM/REMA mosaics, among others, are hosted this way).
+    Requires `AWS_NO_SIGN_REQUEST=YES` in the GDAL environment for public
+    buckets with no credentials configured -- see `load_dem_mosaic()`,
+    which sets this via `rasterio.Env(...)` around every call that might
+    use a rewritten path.
+
+    NOTE: the actual speed benefit of `/vsis3/` over `/vsicurl/` for a
+    given network path is a hypothesis, not something verified end-to-end
+    against PGC's real bucket in this codebase's test environment (no
+    network egress to AWS from there) -- only this URL-rewriting logic
+    itself is unit-tested (tests/test_io.py). Benchmark it against your
+    own network before relying on it; `prefer_s3=False` on
+    `load_dem_mosaic()` opts back out to the previous `/vsicurl/`
+    behaviour if it doesn't help (or actively hurts) on your setup."""
+    m = _S3_VIRTUAL_HOSTED_RE.match(url)
+    if m:
+        return f"/vsis3/{m.group('bucket')}/{m.group('key')}"
+    m = _S3_PATH_STYLE_RE.match(url)
+    if m:
+        return f"/vsis3/{m.group('bucket')}/{m.group('key')}"
+    return url
 
 
 def _fix_proj_env():
@@ -95,7 +141,7 @@ def _open_raster(path):
             yield src
 
 
-def _open_raster_sync(path):
+def _open_raster_sync(path, prefer_s3=False):
     """Same logic as `_open_raster()`, but returns the opened dataset
     directly instead of as a context manager -- lets `load_dem_mosaic()`
     open multiple tiles concurrently via a thread pool (each open is
@@ -105,7 +151,11 @@ def _open_raster_sync(path):
 
     For the .tar.gz case, the underlying MemoryFile is attached to the
     returned dataset as a private attribute so it isn't garbage
-    collected out from under the still-open dataset."""
+    collected out from under the still-open dataset.
+
+    `prefer_s3=True` rewrites `path` via `_https_s3_url_to_vsis3()` first
+    (a safe no-op for anything that isn't a plain HTTPS S3 URL) -- see
+    that function's docstring for what this does and doesn't verify."""
     import rasterio
 
     if str(path).endswith((".tar.gz", ".tgz")):
@@ -131,6 +181,8 @@ def _open_raster_sync(path):
         dataset._terra_texture_memfile = memfile  # keep alive alongside dataset
         return dataset
     else:
+        if prefer_s3:
+            path = _https_s3_url_to_vsis3(path)
         return rasterio.open(path)
 
 
@@ -177,7 +229,7 @@ def _read_window_to_memory(src, window, nodata):
     return dataset
 
 
-def load_dem_mosaic(paths, target_crs=None, bounds=None, bounds_crs="EPSG:4326"):
+def load_dem_mosaic(paths, target_crs=None, bounds=None, bounds_crs="EPSG:4326", prefer_s3=True):
     """Merge two or more DEM tiles into a single seamless array (e.g.
     neighbouring ArcticDEM mosaic tiles). Any mix of plain rasters and
     .tar.gz/.tgz archives is fine -- each is opened via _open_raster().
@@ -213,6 +265,18 @@ def load_dem_mosaic(paths, target_crs=None, bounds=None, bounds_crs="EPSG:4326")
     bounds_crs : str
         CRS of `bounds`. Reprojected internally to whatever `target_crs`
         resolves to before being passed to the merge.
+    prefer_s3 : bool
+        Rewrite plain-HTTPS S3 tile URLs to GDAL's `/vsis3/` virtual
+        filesystem path before opening -- see `_https_s3_url_to_vsis3()`
+        for exactly what this does and its verification status (the URL
+        rewrite itself is unit-tested; the actual speed benefit over
+        `/vsicurl/` on a given network path is NOT verified here and
+        should be benchmarked on your own connection). Always a no-op
+        for local files and any non-S3 HTTPS host, so this is safe to
+        leave on by default; set False to force the previous, plain
+        HTTPS-only behaviour if `/vsis3/` causes problems on your setup
+        (older GDAL builds without S3 VSI support, a network that allows
+        HTTPS but blocks direct AWS access, etc).
 
     Returns
     -------
@@ -221,8 +285,10 @@ def load_dem_mosaic(paths, target_crs=None, bounds=None, bounds_crs="EPSG:4326")
     transform : affine.Affine
     crs : the CRS the mosaic was merged into
     """
+    import functools
     from contextlib import ExitStack
     from concurrent.futures import ThreadPoolExecutor
+    import rasterio
     from rasterio.merge import merge as rio_merge
     from rasterio.vrt import WarpedVRT
     from rasterio.enums import Resampling as ResamplingEnum
@@ -233,14 +299,19 @@ def load_dem_mosaic(paths, target_crs=None, bounds=None, bounds_crs="EPSG:4326")
     if len(paths) < 2:
         raise ValueError("load_dem_mosaic needs at least two tile paths")
 
-    with ExitStack() as stack:
+    # AWS_NO_SIGN_REQUEST=YES is required for /vsis3/ reads against a
+    # public, unsigned bucket (PGC's ArcticDEM/REMA mosaics are public)
+    # -- harmless when prefer_s3=False or no path actually gets rewritten
+    # (local files, non-S3 HTTPS hosts), since it only affects GDAL's S3
+    # VSI driver behaviour.
+    with rasterio.Env(AWS_NO_SIGN_REQUEST="YES"), ExitStack() as stack:
         # Opening each tile is I/O-bound (an HTTPS COG's header fetch, or
         # a .tar.gz archive's local extraction) -- parallelize across
         # tiles rather than opening one at a time. ThreadPoolExecutor.map
         # preserves input order, which matters for rio_merge's "first
         # valid pixel wins" semantics.
         with ThreadPoolExecutor(max_workers=min(8, len(paths))) as executor:
-            srcs = list(executor.map(_open_raster_sync, paths))
+            srcs = list(executor.map(functools.partial(_open_raster_sync, prefer_s3=prefer_s3), paths))
         for s in srcs:
             stack.callback(s.close)
 
@@ -349,3 +420,4 @@ def _fill_nan_nearest(arr):
     idx = distance_transform_edt(mask, return_distances=False, return_indices=True)
     filled = arr[tuple(idx)]
     return filled, mask
+    
