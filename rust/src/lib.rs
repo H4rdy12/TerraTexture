@@ -111,14 +111,14 @@ pub fn soft_light_rgb_serial(a: ArrayView3<f32>, b: ArrayView3<f32>, out: &mut A
         .and(&b)
         .for_each(|o, &a, &b| *o = soft_light_pixel(a, b));
 }
- 
+
 pub fn soft_light_rgb_parallel(a: ArrayView3<f32>, b: ArrayView3<f32>, out: &mut Array3<f32>) {
     Zip::from(out)
         .and(&a)
         .and(&b)
         .par_for_each(|o, &a, &b| *o = soft_light_pixel(a, b));
 }
- 
+
 pub fn soft_light_rgb_core(a: ArrayView3<f32>, b: ArrayView3<f32>, out: &mut Array3<f32>) {
     if a.len() >= PARALLEL_THRESHOLD {
         soft_light_rgb_parallel(a, b, out);
