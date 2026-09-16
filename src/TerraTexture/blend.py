@@ -35,12 +35,32 @@ except ImportError:
     _rust = None
 
 
-def _is_fast_path_soft_light(a, b):
+def _is_fast_path_soft_light_2d(a, b):
     return (
         _rust is not None
         and isinstance(a, np.ndarray) and isinstance(b, np.ndarray)
         and a.dtype == np.float32 and b.dtype == np.float32
         and a.ndim == 2 and a.shape == b.shape
+    )
+
+def _is_fast_path_soft_light_multichannel(a, b):
+    """(H, W, C) RGB(A)-shaped input, e.g. basemap.py's
+    `soft_light(luminosity_composite, basemap_rgb)` final-compositing
+    call. Dispatches to `terra_texture_rs.soft_light_rgb`, a dedicated
+    3-D kernel (not the 2-D one looped per channel) -- same per-element
+    formula either way (soft_light has no cross-channel interaction),
+    but one Rust call over the whole already-contiguous (H, W, C)
+    buffer instead of C separate calls, each needing its own
+    `np.ascontiguousarray()` copy (a channel slice `a[..., c]` of a
+    contiguous (H, W, C) array is itself non-contiguous). Falls back to
+    a per-channel loop of the 2-D kernel if an older-built extension
+    doesn't export `soft_light_rgb` yet, and to _soft_light_numpy if
+    neither is available."""
+    return (
+        _rust is not None
+        and isinstance(a, np.ndarray) and isinstance(b, np.ndarray)
+        and a.dtype == np.float32 and b.dtype == np.float32
+        and a.ndim == 3 and a.shape == b.shape
     )
 
 
@@ -57,14 +77,26 @@ def _soft_light_numpy(a, b):
 
 def soft_light(base, blend):
     """Photoshop-style soft light blend, base & blend arrays in [0, 1].
-
-    Dispatches to the Rust kernel (see module docstring) when available
-    and the inputs are plain float32 2D arrays of matching shape;
-    otherwise uses the pure-numpy implementation below. Same result
-    either way."""
+ 
+    Dispatches to the Rust kernel (see module docstring) when available:
+    directly for plain float32 2D arrays of matching shape, or via a
+    dedicated fused 3D kernel for (H, W, C) arrays of matching shape
+    (e.g. RGB(A) imagery) -- otherwise uses the pure-numpy implementation
+    below. Same result either way."""
     a, b = base, blend
-    if _is_fast_path_soft_light(a, b):
+    if _is_fast_path_soft_light_2d(a, b):
         return _rust.soft_light(np.ascontiguousarray(a), np.ascontiguousarray(b))
+    if _is_fast_path_soft_light_multichannel(a, b):
+        if hasattr(_rust, "soft_light_rgb"):
+            return _rust.soft_light_rgb(np.ascontiguousarray(a), np.ascontiguousarray(b))
+        # extension built before soft_light_rgb existed -- fall back to
+        # the slower but still-correct per-channel loop rather than numpy
+        out = np.empty_like(a)
+        for c in range(a.shape[-1]):
+            out[..., c] = _rust.soft_light(
+                np.ascontiguousarray(a[..., c]), np.ascontiguousarray(b[..., c]),
+            )
+        return out
     return _soft_light_numpy(a, b)
 
 

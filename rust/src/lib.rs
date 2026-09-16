@@ -92,6 +92,41 @@ pub fn soft_light_core(a: ArrayView2<f32>, b: ArrayView2<f32>, out: &mut Array2<
     }
 }
 
+/// Same as `soft_light_core` but over 3-D (H, W, C) arrays -- e.g. RGB
+/// or RGBA imagery -- in ONE pass instead of the Python-side dispatch
+/// calling the 2-D kernel once per channel. `soft_light_pixel` is
+/// already channel-agnostic (a plain f32 -> f32 elementwise formula
+/// with no cross-channel interaction), so this is the exact same
+/// per-element math as the 2-D path; the only reason this exists as a
+/// separate kernel rather than just reshaping and reusing the 2-D one
+/// is to avoid the per-channel `np.ascontiguousarray()` copy the
+/// Python-side loop needed (each `a[..., c]` channel slice of a
+/// contiguous (H, W, C) array is itself non-contiguous). Operating on
+/// the whole (H, W, C) buffer directly, already contiguous, skips that
+/// entirely -- one input read, one output write, per element, with no
+/// intermediate per-channel arrays at all.
+pub fn soft_light_rgb_serial(a: ArrayView3<f32>, b: ArrayView3<f32>, out: &mut Array3<f32>) {
+    Zip::from(out)
+        .and(&a)
+        .and(&b)
+        .for_each(|o, &a, &b| *o = soft_light_pixel(a, b));
+}
+ 
+pub fn soft_light_rgb_parallel(a: ArrayView3<f32>, b: ArrayView3<f32>, out: &mut Array3<f32>) {
+    Zip::from(out)
+        .and(&a)
+        .and(&b)
+        .par_for_each(|o, &a, &b| *o = soft_light_pixel(a, b));
+}
+ 
+pub fn soft_light_rgb_core(a: ArrayView3<f32>, b: ArrayView3<f32>, out: &mut Array3<f32>) {
+    if a.len() >= PARALLEL_THRESHOLD {
+        soft_light_rgb_parallel(a, b, out);
+    } else {
+        soft_light_rgb_serial(a, b, out);
+    }
+}
+
 #[inline]
 fn luminosity_blend_pixel(r0: f32, g0: f32, b0: f32, target_lum: f32) -> (f32, f32, f32) {
     const EPS: f32 = 1e-12;
@@ -377,6 +412,21 @@ fn soft_light<'py>(
 }
 
 #[pyfunction]
+fn soft_light_rgb<'py>(
+    py: Python<'py>,
+    base: PyReadonlyArray3<'py, f32>,
+    blend: PyReadonlyArray3<'py, f32>,
+) -> Bound<'py, PyArray3<f32>> {
+    let a = base.as_array();
+    let b = blend.as_array();
+    let mut out = Array3::<f32>::zeros(a.raw_dim());
+    py.allow_threads(|| {
+        soft_light_rgb_core(a, b, &mut out);
+    });
+    out.into_pyarray_bound(py)
+}
+
+#[pyfunction]
 fn luminosity_blend<'py>(
     py: Python<'py>,
     backdrop_rgb: PyReadonlyArray3<'py, f32>,
@@ -425,6 +475,7 @@ fn hillshade<'py>(
 #[pymodule]
 fn terra_texture_rs(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(soft_light, m)?)?;
+    m.add_function(wrap_pyfunction!(soft_light_rgb, m)?)?;
     m.add_function(wrap_pyfunction!(luminosity_blend, m)?)?;
     m.add_function(wrap_pyfunction!(curvatures, m)?)?;
     m.add_function(wrap_pyfunction!(hillshade, m)?)?;
