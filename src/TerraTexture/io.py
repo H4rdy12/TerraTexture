@@ -420,4 +420,3 @@ def _fill_nan_nearest(arr):
     idx = distance_transform_edt(mask, return_distances=False, return_indices=True)
     filled = arr[tuple(idx)]
     return filled, mask
-    

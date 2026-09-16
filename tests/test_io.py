@@ -187,7 +187,8 @@ def test_open_raster_sync_leaves_url_unchanged_when_prefer_s3_false(monkeypatch)
 
     monkeypatch.setattr(rasterio, "open", fake_rasterio_open)
 
-    https_url = "https://pgc-opendata-dems.s3.us-west-2.amazonaws.com/rema/mosaics/v2.0/10m/40_10/40_10_10m_v2.0_dem.tif"
+    https_url = ("https://pgc-opendata-dems.s3.us-west-2.amazonaws.com",
+                 "/rema/mosaics/v2.0/10m/40_10/40_10_10m_v2.0_dem.tif")
     _open_raster_sync(https_url, prefer_s3=False)
 
     assert captured["path"] == https_url  # unchanged -- opted out
