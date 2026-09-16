@@ -43,6 +43,7 @@ def _is_fast_path_soft_light_2d(a, b):
         and a.ndim == 2 and a.shape == b.shape
     )
 
+
 def _is_fast_path_soft_light_multichannel(a, b):
     """(H, W, C) RGB(A)-shaped input, e.g. basemap.py's
     `soft_light(luminosity_composite, basemap_rgb)` final-compositing
@@ -77,7 +78,7 @@ def _soft_light_numpy(a, b):
 
 def soft_light(base, blend):
     """Photoshop-style soft light blend, base & blend arrays in [0, 1].
- 
+
     Dispatches to the Rust kernel (see module docstring) when available:
     directly for plain float32 2D arrays of matching shape, or via a
     dedicated fused 3D kernel for (H, W, C) arrays of matching shape
