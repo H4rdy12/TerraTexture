@@ -71,4 +71,4 @@ testpaths = ["tests"]
 [tool.flake8]
 max-line-length = 120
 extend-ignore = ["E203", "W503"]
-exclude = [".venv", "build", "dist", "*.egg-info", "rust"]
+exclude = [".venv", "build", "dist", "*.egg-info", "rust","**/__init__.py"]
