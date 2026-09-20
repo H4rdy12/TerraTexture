@@ -136,13 +136,22 @@ __TITLE_HTML__
   <div class="clip-wrap" style="position:absolute; top:0; left:0; width:50%; height:100%; overflow:hidden;">
     <img src="__BEFORE_URI__" style="display:block; width:__WIDTH__px; max-width:none; height:auto;">
   </div>
-  <div class="handle" style="position:absolute; top:0; left:50%; width:2px; height:100%; background:white; box-shadow:0 0 4px rgba(0,0,0,0.6); cursor:ew-resize;">
-    <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:32px; height:32px; border-radius:50%; background:white; box-shadow:0 0 6px rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; font-family:sans-serif; font-size:14px;">&#8596;</div>
+  <div class="handle" style="position:absolute; top:0; left:50%; width:2px; height:100%;
+    background:white; box-shadow:0 0 4px rgba(0,0,0,0.6); cursor:ew-resize;">
+    <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+        width:32px; height:32px; border-radius:50%; background:white; box-shadow:0 0 6px rgba(0,0,0,0.5);
+        display:flex; align-items:center; justify-content:center; font-family:sans-serif;
+        font-size:14px;">&#8596;</div>
   </div>
-  <div style="position:absolute; top:8px; left:8px; background:rgba(0,0,0,0.55); color:white; padding:2px 8px; border-radius:4px; font-family:sans-serif; font-size:12px; pointer-events:none;">__LABEL_LEFT__</div>
-  <div style="position:absolute; top:8px; right:8px; background:rgba(0,0,0,0.55); color:white; padding:2px 8px; border-radius:4px; font-family:sans-serif; font-size:12px; pointer-events:none;">__LABEL_RIGHT__</div>
+  <div style="position:absolute; top:8px; left:8px; background:rgba(0,0,0,0.55); color:white;
+    padding:2px 8px; border-radius:4px; font-family:sans-serif; font-size:12px;
+    pointer-events:none;">__LABEL_LEFT__</div>
+  <div style="position:absolute; top:8px; right:8px; background:rgba(0,0,0,0.55); color:white;
+    padding:2px 8px; border-radius:4px; font-family:sans-serif; font-size:12px;
+    pointer-events:none;">__LABEL_RIGHT__</div>
 </div>
-<input type="range" min="0" max="100" value="50" id="__WIDGET_ID___slider" style="width:__WIDTH__px; max-width:100%; margin-top:8px;">
+<input type="range" min="0" max="100" value="50" id="__WIDGET_ID___slider"
+    style="width:__WIDTH__px; max-width:100%; margin-top:8px;">
 <script>
 (function() {
   const container = document.getElementById("__WIDGET_ID__");
