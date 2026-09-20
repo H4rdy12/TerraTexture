@@ -407,7 +407,7 @@ pub fn hillshade_core(dem: ArrayView2<f32>, cellsize: f32, azimuth: f32, altitud
 // tests/test_stretch_rust.py), which is the correct bar for a mean/std
 // computation, not exact equality.
 // ============================================================================
- 
+
 #[inline]
 fn stretch_pixel(v: f32, lo: f32, denom: f32) -> f32 {
     if v.is_nan() {
@@ -416,7 +416,7 @@ fn stretch_pixel(v: f32, lo: f32, denom: f32) -> f32 {
         ((v - lo) / denom).clamp(0.0, 1.0)
     }
 }
- 
+
 fn sum_stats_serial(arr: ArrayView2<f32>) -> (f64, f64, u64) {
     let mut sum = 0.0f64;
     let mut sumsq = 0.0f64;
@@ -431,7 +431,7 @@ fn sum_stats_serial(arr: ArrayView2<f32>) -> (f64, f64, u64) {
     }
     (sum, sumsq, count)
 }
- 
+
 fn sum_stats_parallel(arr: ArrayView2<f32>) -> (f64, f64, u64) {
     // rayon's fold+reduce needs a flat parallel iterator; ndarray's own
     // arrays are standard/C-contiguous here (always freshly allocated
@@ -460,7 +460,7 @@ fn sum_stats_parallel(arr: ArrayView2<f32>) -> (f64, f64, u64) {
         None => sum_stats_serial(arr),
     }
 }
- 
+
 /// Pure computation: mean +/- n_std*std stretch to [0,1], NaN-safe.
 /// Matches `stretch.py`'s `stretch_std()` exactly (within float
 /// tolerance -- see module note above).
@@ -471,7 +471,7 @@ pub fn stretch_std_core(arr: ArrayView2<f32>, n_std: f32, out: &mut Array2<f32>)
     } else {
         sum_stats_serial(arr)
     };
- 
+
     let mean_f64 = if count > 0 { sum / count as f64 } else { 0.0 };
     let variance_f64 = if count > 0 {
         (sumsq / count as f64 - mean_f64 * mean_f64).max(0.0) // guard tiny negative from float error
@@ -483,7 +483,7 @@ pub fn stretch_std_core(arr: ArrayView2<f32>, n_std: f32, out: &mut Array2<f32>)
     let lo = mean - n_std * std;
     let hi = mean + n_std * std;
     let denom = hi - lo + 1e-12;
- 
+
     let combine = |o: &mut f32, &v: &f32| *o = stretch_pixel(v, lo, denom);
     let z = Zip::from(out).and(&arr);
     if n >= PARALLEL_THRESHOLD {
@@ -579,11 +579,7 @@ fn hillshade<'py>(
 }
 
 #[pyfunction]
-fn stretch_std<'py>(
-    py: Python<'py>,
-    arr: PyReadonlyArray2<'py, f32>,
-    n_std: f32,
-) -> Bound<'py, PyArray2<f32>> {
+fn stretch_std<'py>(py: Python<'py>, arr: PyReadonlyArray2<'py, f32>, n_std: f32) -> Bound<'py, PyArray2<f32>> {
     let a = arr.as_array();
     let mut out = Array2::<f32>::zeros(a.raw_dim());
     py.allow_threads(|| {
