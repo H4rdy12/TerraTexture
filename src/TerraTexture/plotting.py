@@ -128,6 +128,7 @@ def plot_dem_curvature_softlight(
     }
     return fig, axes, results
 
+
 _COMPARE_SLIDER_TEMPLATE = """
 __TITLE_HTML__
 <div id="__WIDGET_ID__" style="position:relative; width:__WIDTH__px; max-width:100%; user-select:none;">
@@ -148,15 +149,15 @@ __TITLE_HTML__
   const clipWrap = container.querySelector(".clip-wrap");
   const handle = container.querySelector(".handle");
   const slider = document.getElementById("__WIDGET_ID___slider");
- 
+
   function setPct(pct) {
     pct = Math.max(0, Math.min(100, pct));
     clipWrap.style.width = pct + "%";
     handle.style.left = pct + "%";
   }
- 
+
   slider.addEventListener("input", () => setPct(slider.value));
- 
+
   let dragging = false;
   handle.addEventListener("mousedown", (e) => { dragging = true; e.preventDefault(); });
   window.addEventListener("mouseup", () => dragging = false);
@@ -170,15 +171,15 @@ __TITLE_HTML__
 })();
 </script>
 """
- 
- 
+
+
 def compare_slider(before, after, labels=("Before", "After"), max_dim=1200, title=None):
     """Interactive before/after swipe-comparison slider for two
     same-shaped image arrays (e.g. two entries from
     TerraTexture.basemap.plot_dem_basemap_luminosity_relief's returned
     `layers` dict, like `layers['basemap']` vs `layers['final']`),
     rendered as a self-contained HTML widget via IPython.display.
- 
+
     A draggable divider (or the range slider beneath it) reveals more of
     one image or the other -- the standard "before/after" pattern used
     by many mapping/photo-comparison tools. Rendered via HTML/CSS (a
@@ -187,7 +188,7 @@ def compare_slider(before, after, labels=("Before", "After"), max_dim=1200, titl
     laggy for a large array -- each image is encoded to PNG exactly
     once, up front, then the browser handles the rest with no further
     Python involvement.
- 
+
     Both arrays are downsampled for display first (same strided
     decimation as `TerraTexture.basemap`'s own interactive preview) --
     there's no reason to base64-embed more pixels than a browser can
@@ -195,7 +196,7 @@ def compare_slider(before, after, labels=("Before", "After"), max_dim=1200, titl
     keeping; use the full-resolution arrays directly (e.g.
     `plt.imsave('out.png', layers['final'])`) for anything you want to
     save.
- 
+
     Parameters
     ----------
     before, after : 2D or 3D arrays
@@ -213,7 +214,7 @@ def compare_slider(before, after, labels=("Before", "After"), max_dim=1200, titl
         embedded in the widget.
     title : str or None
         Optional heading shown above the slider.
- 
+
     Returns
     -------
     IPython.display.HTML -- Jupyter renders this automatically as the
@@ -223,24 +224,24 @@ def compare_slider(before, after, labels=("Before", "After"), max_dim=1200, titl
     import base64
     import io as _io
     import uuid
- 
+
     from IPython.display import HTML
     from PIL import Image
- 
+
     before = np.asarray(before)
     after = np.asarray(after)
     if before.shape[:2] != after.shape[:2]:
         raise ValueError(
             f"before/after must have matching height/width, got {before.shape} vs {after.shape}"
         )
- 
+
     def _to_uint8_rgb(arr):
         if arr.dtype != np.uint8:
             arr = (np.clip(arr, 0, 1) * 255).astype(np.uint8)
         if arr.ndim == 2:
             arr = np.stack([arr] * 3, axis=-1)
         return arr
- 
+
     def _downsample(arr, max_dim):
         h, w = arr.shape[:2]
         # ceiling division, not int() (which floors) -- int(4000/1200)=3
@@ -249,21 +250,21 @@ def compare_slider(before, after, labels=("Before", "After"), max_dim=1200, titl
         # never exceeds max_dim (verified in plotting tests).
         step = max(1, -(-max(h, w) // max_dim))
         return arr[::step, ::step]
- 
+
     def _to_data_uri(arr):
         arr = _downsample(_to_uint8_rgb(arr), max_dim)
         buf = _io.BytesIO()
         Image.fromarray(arr).save(buf, format="PNG")
         b64 = base64.b64encode(buf.getvalue()).decode("ascii")
         return f"data:image/png;base64,{b64}", arr.shape
- 
+
     before_uri, shape = _to_data_uri(before)
     after_uri, _ = _to_data_uri(after)
     height, width = shape[:2]
- 
+
     widget_id = f"compare_{uuid.uuid4().hex[:8]}"
     title_html = f'<h4 style="margin:0 0 8px 0; font-family:sans-serif;">{title}</h4>' if title else ""
- 
+
     html = (
         _COMPARE_SLIDER_TEMPLATE
         .replace("__TITLE_HTML__", title_html)
