@@ -1,9 +1,8 @@
 """
-# TerraTexture
 
 **Curvature-driven shaded relief that brings out the texture of terrain.**
 
-## What is it?
+# What is it?
 
 TerraTexture turns a digital elevation model (DEM) into relief imagery
 that shows *shape*, not just height. It computes terrain derivatives
@@ -13,7 +12,7 @@ so ridges, gullies, moraines and breaks of slope stand out far more
 clearly than in a plain hillshade. The result can be plotted on its own,
 draped over a web basemap, or used as a backdrop for your own data.
 
-## Why?
+# Why?
 
 TerraTexture grew out of a plotting tool I built during my PhD. 
 Working with DEMs in polar regions it seemed a shame not to use 
@@ -44,7 +43,7 @@ imagery.
 
 <!-- terratexture:example-html -->
 
-## Example
+# Example
 
 ```python
 import TerraTexture as tt
@@ -54,7 +53,7 @@ dem = tt.io.load_dem(path)
 fig = tt.plotting.plot_dem_curvature_softlight(dem)
 ```
 
-## Core breakdown
+# Core breakdown
 
 Each group is importable on its own. Submodules are loaded lazily, so
 ``import TerraTexture`` never pulls in rasterio or contextily until you
