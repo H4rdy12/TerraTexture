@@ -511,10 +511,10 @@ fn soft_light<'py>(
     let a = base.as_array();
     let b = blend.as_array();
     let mut out = Array2::<f32>::zeros(a.raw_dim());
-    py.allow_threads(|| {
+    py.detach(|| {
         soft_light_core(a, b, &mut out);
     });
-    out.into_pyarray_bound(py)
+    out.into_pyarray(py)
 }
 
 #[pyfunction]
@@ -526,10 +526,10 @@ fn soft_light_rgb<'py>(
     let a = base.as_array();
     let b = blend.as_array();
     let mut out = Array3::<f32>::zeros(a.raw_dim());
-    py.allow_threads(|| {
+    py.detach(|| {
         soft_light_rgb_core(a, b, &mut out);
     });
-    out.into_pyarray_bound(py)
+    out.into_pyarray(py)
 }
 
 #[pyfunction]
@@ -541,10 +541,10 @@ fn luminosity_blend<'py>(
     let backdrop = backdrop_rgb.as_array();
     let lum = luminosity.as_array();
     let mut out = Array3::<f32>::zeros(backdrop.raw_dim());
-    py.allow_threads(|| {
+    py.detach(|| {
         luminosity_blend_core(backdrop, lum, &mut out);
     });
-    out.into_pyarray_bound(py)
+    out.into_pyarray(py)
 }
 
 #[pyfunction]
@@ -556,10 +556,10 @@ fn curvatures<'py>(
     let d = dem.as_array();
     let mut profile = Array2::<f32>::zeros(d.raw_dim());
     let mut planform = Array2::<f32>::zeros(d.raw_dim());
-    py.allow_threads(|| {
+    py.detach(|| {
         curvatures_core(d, cellsize, &mut profile, &mut planform);
     });
-    (profile.into_pyarray_bound(py), planform.into_pyarray_bound(py))
+    (profile.into_pyarray(py), planform.into_pyarray(py))
 }
 
 #[pyfunction]
@@ -572,20 +572,20 @@ fn hillshade<'py>(
 ) -> Bound<'py, PyArray2<f32>> {
     let d = dem.as_array();
     let mut out = Array2::<f32>::zeros(d.raw_dim());
-    py.allow_threads(|| {
+    py.detach(|| {
         hillshade_core(d, cellsize, azimuth, altitude, &mut out);
     });
-    out.into_pyarray_bound(py)
+    out.into_pyarray(py)
 }
 
 #[pyfunction]
 fn stretch_std<'py>(py: Python<'py>, arr: PyReadonlyArray2<'py, f32>, n_std: f32) -> Bound<'py, PyArray2<f32>> {
     let a = arr.as_array();
     let mut out = Array2::<f32>::zeros(a.raw_dim());
-    py.allow_threads(|| {
+    py.detach(|| {
         stretch_std_core(a, n_std, &mut out);
     });
-    out.into_pyarray_bound(py)
+    out.into_pyarray(py)
 }
 
 #[pymodule]
