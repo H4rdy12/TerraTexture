@@ -1,21 +1,28 @@
-# Containerfile for H4rdy12/TerraTexture
+# Dockerfile for H4rdy12/TerraTexture
 #
-# Build:   podman build -t terratexture-dev -f Containerfile .
-# Run:     podman run --rm -it -v $(pwd):/app:Z terratexture-dev bash
-# Test:    podman run --rm -v $(pwd):/app:Z terratexture-dev uv run pytest
+# Build:   DOCKER_BUILDKIT=1 docker build -t terratexture-dev .
+# Run:     docker run --rm -it -v $(pwd):/app terratexture-dev bash
+# Test:    docker run --rm -v $(pwd):/app terratexture-dev uv run pytest
 #
 # Notes:
-# - The `:Z` on -v is for SELinux hosts (Fedora/RHEL). Drop it if you're on
-#   Debian/Ubuntu and it complains about an unknown flag.
+# - Requires BuildKit (the RUN --mount=type=cache lines below need it).
+#   DOCKER_BUILDKIT=1 is the default on recent Docker/Docker Desktop, but
+#   set it explicitly if your `docker build` errors about --mount.
 # - This image is for local dev / CI (build + test + optional Rust extension).
 #   It is NOT a manylinux wheel-builder — see the bottom of this file for that.
+#
+# Size fix: uv's download cache used to get baked into the image on top of
+# the already-installed .venv, roughly doubling the footprint of the
+# geospatial extras. `RUN --mount=type=cache` keeps that cache OUTSIDE the
+# image entirely, and persists it across builds.
 
 FROM python:3.11-slim-bookworm AS base
 
 # System deps:
 # - build-essential + curl: needed to install uv and the Rust toolchain
 # - gdal/proj/geos libs: rasterio (raster/basemap extras) links against these
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
     ca-certificates \
@@ -44,14 +51,21 @@ COPY pyproject.toml uv.lock ./
 # Pull in everything: core + raster + basemap extras, dev tooling, and the
 # rust group (maturin) — mirrors `uv sync --group dev --extra raster` plus
 # basemap + rust, since this image is meant to cover the whole project.
-RUN uv sync --extra raster --extra basemap --group dev --group rust --no-install-project
+#
+# The uv cache mount is keyed so repeated builds (even after source changes
+# below invalidate this layer) reuse already-downloaded wheels instead of
+# re-fetching them, without those wheels ending up in the image.
+RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
+    uv sync --extra raster --extra basemap --group dev --group rust --no-install-project
 
 # Now copy the actual source and install the project itself
 COPY . .
-RUN uv sync --extra raster --extra basemap --group dev --group rust
+RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
+    uv sync --extra raster --extra basemap --group dev --group rust
 
 # If/when you want the Rust extension built in, uncomment:
-# RUN cd rust && uv run maturin develop --release
+# RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
+#     cd rust && uv run maturin develop --release
 
 ENV PATH="/app/.venv/bin:$PATH"
 
@@ -62,9 +76,9 @@ CMD ["bash"]
 # extension, you don't build this image — you run maturin's own manylinux
 # image against your source instead, e.g.:
 #
-#   podman run --rm -v $(pwd):/io:Z ghcr.io/pyo3/maturin build \
+#   docker run --rm -v $(pwd):/io ghcr.io/pyo3/maturin build \
 #       --release --manylinux 2014 --out /io/dist -m rust/Cargo.toml
 #
 # or drive it via cibuildwheel with:
-#   CIBW_CONTAINER_ENGINE=podman
+#   CIBW_CONTAINER_ENGINE=docker
 # ---------------------------------------------------------------------------
