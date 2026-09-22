@@ -41,6 +41,7 @@ uv sync --extra raster                     # + loading real DEM files (rasterio)
 uv sync --extra basemap                    # + draping relief over basemap imagery (rasterio + contextily)
 uv sync --group dev                        # + pytest, flake8 (dev tooling)
 uv sync --group dev --extra raster         # dev tooling + raster extras together (typical local setup)
+uv sync --group dev --extra rust         # enables rust backend workflow
 uv add --dev ipykernel          # or: uv pip install ipykernel
 uv run python -m ipykernel install --user --name terratexture --display-name "TerraTexture (uv)"
 ```
