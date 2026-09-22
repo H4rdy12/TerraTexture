@@ -28,6 +28,7 @@ basemap = [
     "rasterio",
     "contextily",
 ]
+rust = ["terra_texture_rs"]
 # ArcticDEM STAC querying additionally needs DEMSquad_STAC, which isn't on
 # PyPI -- install it manually and point demsquad_path= at its location.
 
