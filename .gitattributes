@@ -19,4 +19,4 @@ uv.lock -text
 *.tif binary
 *.tar.gz binary
 
-TerraTexture/assets/*.html linguist-documentation linguist-generated
+src/TerraTexture/assets/*.html linguist-documentation linguist-generated
