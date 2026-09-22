@@ -130,6 +130,9 @@ _MAX_PAGES = 1000
 # Transient HTTP statuses worth retrying (rate limit + server errors).
 _RETRY_STATUSES = (429, 500, 502, 503, 504)
 
+# Error messages list every collection ID only when there are this few.
+_MAX_LISTED_COLLECTIONS = 20
+
 _session: requests.Session | None = None
 
 
@@ -958,7 +961,8 @@ def opentopography_dem_urls(
 
     Raises:
         ValueError: If no collection matches ``collection`` (the message
-            lists close matches), or the arguments are invalid.
+            suggests close matches, or lists every ID when there are 20
+            or fewer), or the arguments are invalid.
         KeyError: If an item has no ``asset_key`` asset.
         STACError: If any request fails.
         ImportError: If ``requests`` is not installed.
@@ -970,10 +974,15 @@ def opentopography_dem_urls(
             ids = [str(c["id"]) for c in available]
             needle = str(collection).lower()
             close = [i for i in ids if needle in i.lower()]
-            hint = f"Did you mean: {close[:10]}?" if close else (
-                f"{len(ids)} collections available; see "
-                "list_stac_collections()."
-            )
+            if close:
+                hint = f"Did you mean: {close[:10]}?"
+            elif len(ids) <= _MAX_LISTED_COLLECTIONS:
+                hint = f"Available: {ids}"
+            else:
+                hint = (
+                    f"{len(ids)} collections available; see "
+                    "list_stac_collections()."
+                )
             raise ValueError(
                 f"No OpenTopography collection matches '{collection}'. {hint}"
             )
