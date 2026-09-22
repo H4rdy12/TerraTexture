@@ -32,6 +32,9 @@ FROM python:3.11-slim-bookworm AS build
 # System deps:
 # - gcc + curl: needed to install uv, the Rust toolchain, and to link the
 #   Rust extension (`cc` is rustc's default linker on Linux)
+# - libc6-dev: the C runtime objects (Scrt1.o, crti.o) and libc/libm/etc.
+#   link libraries. gcc only *recommends* it, so --no-install-recommends
+#   leaves it out, and every Rust build script then fails to link.
 # - NOTE: libgdal-dev / libproj-dev / libgeos-dev / pkg-config removed —
 #   rasterio ships manylinux wheels with GDAL bundled statically, so the
 #   Python side doesn't need system GDAL headers, and the rust/ crate
@@ -40,6 +43,7 @@ FROM python:3.11-slim-bookworm AS build
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get update && apt-get install -y --no-install-recommends \
     gcc \
+    libc6-dev \
     curl \
     ca-certificates \
  && rm -rf /var/lib/apt/lists/* /usr/share/doc/* /usr/share/man/* /usr/share/locale/*
@@ -67,17 +71,30 @@ COPY pyproject.toml uv.lock ./
 # The uv cache mount is keyed so repeated builds (even after source changes
 # below invalidate this layer) reuse already-downloaded wheels instead of
 # re-fetching them, without those wheels ending up in the image.
+#
+# The rust group includes the local editable path dependency
+# `terra-texture-rs` (./rust), but only pyproject.toml + uv.lock have been
+# copied at this point, so ./rust doesn't exist yet:
+# - --frozen installs straight from uv.lock without re-resolving against
+#   local sources (which would need ./rust to be present)
+# - --no-install-package terra-texture-rs skips the Rust extension here;
+#   the second `uv sync` below installs it once the source is copied in.
 RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
-    uv sync --extra raster --extra basemap --group dev --group rust --no-install-project
+    uv sync --frozen --extra raster --extra basemap --group dev --group rust \
+        --no-install-project --no-install-package terra-texture-rs
 
 # Now copy the actual source and install the project itself
 COPY . .
 RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
     uv sync --extra raster --extra basemap --group dev --group rust
 
+# Run from /app (not `cd rust`): rust/ has its own pyproject.toml, so
+# `uv run` inside it would create a separate rust/.venv and install the
+# extension there. From /app, uv run uses /app/.venv, which is where the
+# runtime-venv stage copies terra_texture_rs from.
 RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,target=/app/rust/target,sharing=locked \
-    cd rust && uv run maturin develop --release
+    uv run maturin develop --release --manifest-path rust/Cargo.toml
 
 ENV PATH="/app/.venv/bin:$PATH"
 
