@@ -626,39 +626,40 @@
       gap: 0.4rem;
       border-top: 1px solid var(--border);
       padding-top: 1rem;
+      padding-right: 4.5rem; /* keep footer text clear of the language icon */
     }
 
-    
-/* Language icons */
-.card-language-icon {
-    position: absolute;
-    right: 1.5rem;
-    bottom: 1.25rem;
-    width: 42px;
-    height: 42px;
-    color: var(--green);
-    opacity: 0.85;
-    pointer-events: none;
-}
-
-.card-language-icon svg {
-    display: block;
-    width: 100%;
-    height: 100%;
-    fill: currentColor;
-}
-
-.card-footer {
-    padding-right: 4.5rem;
-}
-
-.card-footer::before {
+    .card-footer::before {
       content: '';
       display: inline-block;
       width: 6px;
       height: 6px;
       border-radius: 50%;
       background: var(--green);
+    }
+
+    /* Language icons -- single-colour SVGs inherit the brand green via
+       currentColor. Keep opacity at 1 so the colour is exactly #135821;
+       any SVG dropped in must NOT carry its own fill attributes. */
+    .card-language-icon {
+      position: absolute;
+      right: 1.5rem;
+      bottom: 1.25rem;
+      width: 42px;
+      height: 42px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--green);
+      opacity: 1;
+      pointer-events: none;
+    }
+
+    .card-language-icon svg {
+      display: block;
+      width: 100%;
+      height: 100%;
+      fill: currentColor;
     }
 
     footer {
@@ -713,6 +714,7 @@
 
     <div class="cards">
 
+      <!-- Python API (pdoc) -->
       <a class="card" href="api/TerraTexture.html">
         <div class="card-header">
           <span class="card-tag">pdoc</span>
@@ -722,6 +724,37 @@
         <span class="card-version">Version {{VERSION}}</span>
         <p>Curvature-derived shaded relief: fetch DEM tiles for an AOI from public STAC catalogs, merge and reproject them, compute profile/planform curvature and hillshade, and blend into a soft-light / luminosity relief &mdash; optionally draped over basemap imagery.</p>
         <div class="card-footer">Browse Python API reference</div>
+        <span class="card-language-icon" aria-hidden="true">
+          <!-- Paste the Python <svg> from https://simpleicons.org (search "python") here.
+               Simple Icons SVGs are single-path with no fill attribute, so they
+               pick up the green automatically. -->
+        </span>
+      </a>
+
+      <!-- Rust API (rustdoc) -->
+      <a class="card" href="rust/terratexture/index.html">
+        <div class="card-header">
+          <span class="card-tag">rustdoc</span>
+          <span class="card-arrow">&#8599;</span>
+        </div>
+        <h2>terratexture</h2>
+        <span class="card-version">Version {{RUST_VERSION}}</span>
+        <p>Fused Rust kernels behind the Python package: the elementwise soft-light and luminosity blend math, compiled for speed and exposed to Python as a native extension.</p>
+        <div class="card-footer">Browse Rust API reference</div>
+        <span class="card-language-icon" aria-hidden="true">
+          <!-- Simplified Ferris the crab (public domain mascot), single colour -->
+          <svg viewBox="0 0 64 40" xmlns="http://www.w3.org/2000/svg">
+            <path fill-rule="evenodd" d="M8 27C8 14 20 11 32 11S56 14 56 27c0 4-10 6-24 6S8 31 8 27Z
+              M23.5 20a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0-5 0Z
+              M35.5 20a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0-5 0Z"/>
+            <path d="M2 10a6 6 0 0 1 10-3l-4 4 4 3a6 6 0 0 1-10-4Z"/>
+            <path d="M62 10a6 6 0 0 0-10-3l4 4-4 3a6 6 0 0 0 10-4Z"/>
+            <g fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+              <path d="M12 22 8 14M52 22l4-8"/>
+              <path d="M14 30l-6 6M20 32l-3 6M44 32l3 6M50 30l6 6"/>
+            </g>
+          </svg>
+        </span>
       </a>
 
     </div>
