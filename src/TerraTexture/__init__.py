@@ -13,8 +13,6 @@ so ridges, gullies, moraines and breaks of slope stand out far more
 clearly than in a plain hillshade. The result can be plotted on its own,
 draped over a web basemap, or used as a backdrop for your own data.
 
-<!-- terratexture:example-html -->
-
 ## Why?
 
 TerraTexture grew out of a plotting tool I built during my PhD. 
@@ -43,6 +41,8 @@ reproducibly. It pulls DEMs from open data, namely the
 OpenTopography STAC collection and the Polar Geospatial Center (PGC)
 mosaics, and uses the open-source contextily library for basemap
 imagery.
+
+<!-- terratexture:example-html -->
 
 ## Example
 
