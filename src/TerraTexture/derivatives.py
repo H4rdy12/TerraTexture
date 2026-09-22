@@ -344,7 +344,11 @@ def _hillshade_numpy(
     alt = np.float32(np.radians(altitude))
     zy, zx = np.gradient(dem, cellsize)
     slope = np.pi / 2 - np.arctan(np.hypot(zx, zy))
-    aspect = np.arctan2(-zx, zy)
+    # ArcGIS convention: aspect = atan2(dz/dy, -dz/dx), with dz/dy taken
+    # down the rows (north -> south) as np.gradient does. The arguments
+    # were previously swapped, which mirrored the light across the NE-SW
+    # axis: the default NW light shaded terrain as if lit from the SE.
+    aspect = np.arctan2(zy, -zx)
     shaded = (
         np.sin(alt) * np.sin(slope)
         + np.cos(alt) * np.cos(slope) * np.cos(az - aspect)
@@ -428,7 +432,8 @@ def hillshade(
         otherwise, or the kernel raised        -> numpy
 
     Args:
-        dem (npt.ArrayLike): 2-D elevation array, at least 3 x 3. NaN
+        dem (npt.ArrayLike): 2-D elevation array, at least 3 x 3, north-up
+            (row 0 = north, as rasterio reads a standard GeoTIFF). NaN
             marks nodata. Converted to ``float32``.
         cellsize (float): Pixel size in the same horizontal units as the
             elevations (normally metres). Must be positive.
@@ -441,6 +446,14 @@ def hillshade(
     Returns:
         FloatArray: float32 illumination shaped like ``dem``, in
             ``[0, 1]``. NaN where ``dem`` is NaN.
+
+    Warning:
+        Before this version the numpy path computed aspect with swapped
+        ``atan2`` arguments, mirroring the light across the NE-SW axis
+        (the default NW light shaded as if from the SE). The Rust
+        ``hillshade`` kernel must use the same corrected formula,
+        ``atan2(dz/dy, -dz/dx)``; ``tests/test_derivatives_rust.py``
+        checks it against an independent ground truth.
 
     Raises:
         TypeError: If ``dem`` is not numeric.
