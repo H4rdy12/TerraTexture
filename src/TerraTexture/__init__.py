@@ -30,6 +30,14 @@ features come out bright, while smooth, low-relief surfaces fall
 darker, so the texture of the terrain carries through the imagery
 rather than being flattened by it.
 
+The project also became a chance to explore Rust for performance.
+Polar DEM mosaics at around 10 m resolution span millions of square
+kilometres, which means hundreds of billions of pixels, so both
+memory use and speed matter. The heavy computations run in a Rust
+core that releases Python's Global Interpreter Lock (GIL), so the
+work can be split across threads and use every CPU core rather
+than one.
+
 The result is a small, dependency-light toolkit that does this
 reproducibly. It pulls DEMs from open data, namely the
 OpenTopography STAC collection and the Polar Geospatial Center (PGC)
