@@ -62,6 +62,14 @@ Fetching open-source ArcticDEM/REMA mosaic tiles for an AOI
 `raster`/`basemap` extras above. No signup, API key, or local software
 required: it queries PGC's public STAC API directly.
 
+### activate rust on mnted VM...
+```
+mkdir -p ~/.cargo-targets/terratexture
+export CARGO_TARGET_DIR=$HOME/.cargo-targets/terratexture
+cd /TerraTexture/rust
+maturin develop --release
+```
+
 ```python
 from TerraTexture.sources import arcticdem_mosaic, rema_mosaic
 
