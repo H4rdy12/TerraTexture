@@ -6,7 +6,7 @@ build-backend = "maturin"
 name = "terra-texture-rs"
 version = "0.1.0"
 description = "Compiled Rust extension for TerraTexture: pyo3/numpy/ndarray-backed elementwise blend and derivatives math."
-readme = "../README.md"
+readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
 authors = [
