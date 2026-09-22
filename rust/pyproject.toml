@@ -1,0 +1,13 @@
+[build-system]
+requires = ["maturin>=1,<2"]
+build-backend = "maturin"
+
+[project]
+name = "terra-texture-rs"
+version = "0.1.0"
+description = "Compiled Rust extension for TerraTexture: pyo3/numpy/ndarray-backed elementwise blend and derivatives math."
+requires-python = ">=3.9"
+dynamic = ["classifiers"]
+
+[tool.maturin]
+module-name = "terra_texture_rs"
