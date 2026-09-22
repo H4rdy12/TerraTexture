@@ -2,6 +2,11 @@
 name = "terra_texture_rs"
 version = "0.1.0"
 edition = "2021"
+description = "Compiled Rust extension for TerraTexture: pyo3/numpy/ndarray-backed elementwise blend and derivatives math (soft-light / luminosity blending, curvature derivatives). Used as an optional accelerated backend, with terra_texture.blend/derivatives falling back to pure numpy when it isn't built."
+license = "MIT"
+authors = ["Dominic Hardy"]
+repository = "https://github.com/H4rdy12/TerraTexture"
+homepage = "https://github.com/H4rdy12/TerraTexture"
 
 [lib]
 name = "terra_texture_rs"
