@@ -1,0 +1,9 @@
+# Applies the TerraTexture docs theme (docs/rustdoc-header.html) to every
+# `cargo doc` build of this crate. Paths are relative to rust/.
+#
+# NOTE: a RUSTDOCFLAGS environment variable REPLACES this list rather
+# than adding to it. In CI, include the theme flag alongside -D warnings:
+#   RUSTDOCFLAGS="-D warnings --html-in-header docs/rustdoc-header.html"
+[build]
+rustdocflags = ["--html-in-header", "docs/rustdoc-header.html"]
+ 

@@ -1,0 +1,117 @@
+<!--
+TerraTexture rustdoc theme -- the Rust-side mirror of the pdoc theme.
+
+Injected into every rustdoc page via `--html-in-header` (see
+.cargo/config.toml). Colours match the pdoc theme, sampled from the
+project logo:
+  brand blue  #244459  ("erra")
+  brand green #135821  ("Texture")
+
+Same colour roles as pdoc: names (modules, functions) in brand blue;
+types, traits and keywords in brand green -- pdoc's --def/--annotation.
+
+rustdoc ships light/dark/ayu themes on `:root[data-theme=...]`. The
+`html:root` selectors below are one notch more specific, so this palette
+applies whichever theme a reader has picked, matching the light-only
+pdoc docs.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=DM+Sans:wght@300;400;500&display=swap">
+<style>
+html:root[data-theme],
+html:root:not([data-theme]) {
+    color-scheme: light;
+
+    /* page + text (pdoc: --pdoc-background, --text, --muted) */
+    --main-background-color: #eef0ed;
+    --main-color: #22262a;
+    --right-side-color: #696969;
+    --search-results-grey-color: #696969;
+    --toggles-color: #696969;
+    --src-line-numbers-span-color: #696969;
+
+    /* links (pdoc: --link, --name, --def/--annotation) */
+    --link-color: #244459;
+    --mod-link-color: #244459;
+    --function-link-color: #244459;
+    --assoc-item-link-color: #244459;
+    --type-link-color: #135821;
+    --trait-link-color: #135821;
+    --macro-link-color: #135821;
+    --keyword-link-color: #135821;
+
+    /* sidebar (pdoc: --accent2, --nav-hover, --active) */
+    --sidebar-background-color: #e4e7e1;
+    --sidebar-background-color-hover: rgba(36, 68, 89, 0.08);
+    --sidebar-current-link-background-color: rgba(36, 68, 89, 0.12);
+    --sidebar-link-color: #244459;
+    --src-sidebar-background-selected: rgba(36, 68, 89, 0.12);
+    --src-sidebar-background-hover: rgba(36, 68, 89, 0.08);
+
+    /* borders, tables, code blocks (pdoc: --accent2, --accent, --code) */
+    --border-color: #d7dad3;
+    --headings-border-bottom-color: #d7dad3;
+    --table-alt-row-background-color: rgba(36, 68, 89, 0.04);
+    --code-block-background-color: #f4f5f2;
+    --button-background-color: #f4f5f2;
+    --settings-input-color: #244459;
+    --settings-input-border-color: #d7dad3;
+    --search-input-focused-border-color: #244459;
+    --search-result-border-color: #d7dad3;
+    --search-result-link-focus-background-color: rgba(36, 68, 89, 0.12);
+    --target-background-color: rgba(36, 68, 89, 0.06);
+    --target-border-color: #244459;
+    --scrollbar-track-background-color: #e4e7e1;
+    --scrollbar-thumb-background-color: #c2c6bf;
+    --scrollbar-color: #c2c6bf #e4e7e1;
+
+    /* syntax highlighting in examples */
+    --code-highlight-kw-color: #135821;
+    --code-highlight-kw-2-color: #135821;
+    --code-highlight-lifetime-color: #244459;
+    --code-highlight-prelude-color: #244459;
+    --code-highlight-prelude-val-color: #244459;
+    --code-highlight-number-color: #3d6683;
+    --code-highlight-string-color: #6b7a2e;
+    --code-highlight-literal-color: #3d6683;
+    --code-highlight-attribute-color: #696969;
+    --code-highlight-self-color: #135821;
+    --code-highlight-macro-color: #135821;
+    --code-highlight-question-mark-color: #135821;
+    --code-highlight-comment-color: #696969;
+    --code-highlight-doc-comment-color: #5b6b5e;
+
+    /* the "Run"/test and copy-path icons are dark-on-light in this palette */
+    --copy-path-img-filter: none;
+    --copy-path-img-hover-filter: none;
+    --crate-search-div-filter: none;
+    --toggle-filter: none;
+    --rust-logo-filter: none;
+}
+
+/* link hover (pdoc: --link-hover) */
+html:root .docblock a:not(.scrape-help):not(.tooltip):hover,
+html:root .item-table a:hover,
+html:root .sidebar a:hover {
+    color: #3d6683;
+}
+
+/* fonts: DM Sans for prose and headings, JetBrains Mono for code */
+body,
+search, h1, h2, h3, h4, h5, h6,
+.sidebar, .mobile-topbar, .search-input,
+.search-results .result-name, .item-name > a,
+.out-of-band, span.since, a.src, summary.hideme, ul.all-items {
+    font-family: 'DM Sans', 'Fira Sans', Arial, sans-serif;
+}
+code, pre, a.test-arrow, .code-header {
+    font-family: 'JetBrains Mono', 'Source Code Pro', monospace;
+}
+
+/* crate/module title (pdoc: .modulename) */
+.main-heading h1 {
+    color: #22262a;
+    font-weight: 500;
+}
+</style>
