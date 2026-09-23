@@ -96,7 +96,6 @@ fn luminosity_blend_row(mut out_row: ArrayViewMut2<f32>, backdrop_row: ArrayView
 ///
 /// Same arguments, output and panics as [`luminosity_blend_core`], but
 /// always runs serially. Public for benchmarking only (see module docs).
-
 pub fn luminosity_blend_serial(backdrop_rgb: ArrayView3<f32>, luminosity: ArrayView2<f32>, out: &mut Array3<f32>) {
     Zip::from(out.outer_iter_mut())
         .and(backdrop_rgb.outer_iter())
