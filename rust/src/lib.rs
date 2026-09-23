@@ -59,6 +59,11 @@
 //! kernels run a plain serial loop instead. The threshold is a
 //! **provisional placeholder**, not a measured value; see its docs.
 
+// Sidebar logo: the same logo.jpg the pdoc docs use, loaded from the
+// public repo so it works at every page depth. Sized by
+// docs/rustdoc-header.html to fit the sidebar like the pdoc one does.
+#![doc(html_logo_url = "https://raw.githubusercontent.com/H4rdy12/TerraTexture/main/docs/docs_template/logo.jpg")]
+
 mod common;
 pub mod curvature;
 pub mod hillshade;

@@ -1,20 +1,20 @@
 <!--
 TerraTexture rustdoc theme -- the Rust-side mirror of the pdoc theme
 (layout.css + content.css + theme.css).
-
+ 
 Injected into every rustdoc page via `--html-in-header` (see
 .cargo/config.toml). Colours sampled from the project logo:
   brand blue  #244459  ("erra")
   brand green #135821  ("Texture")
-
+ 
 Same colour roles as pdoc: names (modules, functions) in brand blue;
 types, traits and keywords in brand green -- pdoc's --def/--annotation.
-
+ 
 rustdoc ships light/dark/ayu themes on `:root[data-theme=...]`. The
 `html:root` selectors below are one notch more specific, so this palette
 applies whichever theme a reader has picked, matching the light-only
 pdoc docs.
-
+ 
 The contour background is NOT written by hand here: it is copied from
 pdoc's layout.css by docs/sync_rustdoc_contour.py, so both doc sites
 share one texture. Re-run that script whenever the contour is
@@ -30,7 +30,7 @@ regenerated.
 html:root[data-theme],
 html:root:not([data-theme]) {
     color-scheme: light;
-
+ 
     /* pdoc names, kept for use in the rules below */
     --tt-text: #22262a;
     --tt-muted: #696969;
@@ -42,7 +42,7 @@ html:root:not([data-theme]) {
     --tt-active: rgba(36, 68, 89, 0.12);
     --tt-nav-hover: rgba(36, 68, 89, 0.08);
     --tt-def: #135821;
-
+ 
     /* page + text */
     --main-background-color: #eef0ed;
     --main-color: var(--tt-text);
@@ -50,7 +50,7 @@ html:root:not([data-theme]) {
     --search-results-grey-color: var(--tt-muted);
     --toggles-color: var(--tt-muted);
     --src-line-numbers-span-color: var(--tt-muted);
-
+ 
     /* links: names blue, types/keywords green */
     --link-color: var(--tt-link);
     --mod-link-color: var(--tt-link);
@@ -60,7 +60,7 @@ html:root:not([data-theme]) {
     --trait-link-color: var(--tt-def);
     --macro-link-color: var(--tt-def);
     --keyword-link-color: var(--tt-def);
-
+ 
     /* sidebar */
     --sidebar-background-color: rgba(248, 249, 246, 0.45);
     --sidebar-background-color-hover: var(--tt-nav-hover);
@@ -68,7 +68,7 @@ html:root:not([data-theme]) {
     --sidebar-link-color: var(--tt-muted);
     --src-sidebar-background-selected: var(--tt-active);
     --src-sidebar-background-hover: var(--tt-nav-hover);
-
+ 
     /* borders, code, inputs */
     --border-color: var(--tt-accent2);
     --headings-border-bottom-color: var(--tt-accent2);
@@ -85,7 +85,7 @@ html:root:not([data-theme]) {
     --scrollbar-track-background-color: transparent;
     --scrollbar-thumb-background-color: var(--tt-accent2);
     --scrollbar-color: var(--tt-accent2) transparent;
-
+ 
     /* syntax highlighting in examples */
     --code-highlight-kw-color: var(--tt-def);
     --code-highlight-kw-2-color: var(--tt-def);
@@ -101,7 +101,7 @@ html:root:not([data-theme]) {
     --code-highlight-attribute-color: var(--tt-muted);
     --code-highlight-comment-color: var(--tt-muted);
     --code-highlight-doc-comment-color: #5b6b5e;
-
+ 
     /* icons are dark-on-light in this palette */
     --copy-path-img-filter: none;
     --copy-path-img-hover-filter: none;
@@ -128,14 +128,14 @@ html:root body {
 html, main {
     scroll-behavior: smooth;
 }
-
+ 
 /* Main content: translucent box over the contours (layout.css: main.pdoc) */
 html:root main {
     background-color: rgba(238, 240, 237, 0.45);
     -webkit-backdrop-filter: blur(2px);
     backdrop-filter: blur(2px);
 }
-
+ 
 /* ======================================================================
    Sidebar (layout.css: nav.pdoc)
    ====================================================================== */
@@ -145,26 +145,26 @@ html:root .sidebar {
     border-right: 1px solid var(--tt-accent2);
     scrollbar-width: thin;
 }
-
+ 
 html:root .sidebar a {
     border-radius: 4px;
     font-size: 0.875rem;
     transition: color 100ms, background-color 100ms;
 }
-
+ 
 html:root .sidebar a:hover {
     color: var(--tt-link-hover);
     background-color: var(--tt-nav-hover);
     text-decoration: none;
 }
-
+ 
 /* crate name at the top of the sidebar */
 html:root .sidebar-crate h2 a {
     color: var(--tt-text);
     font-weight: 500;
     font-size: 1rem;
 }
-
+ 
 /* sidebar section headings: small uppercase mono (layout.css: nav h2) */
 html:root .sidebar h2:not(.location):not(.sidebar-crate h2),
 html:root .sidebar h3 {
@@ -175,12 +175,12 @@ html:root .sidebar h3 {
     text-transform: uppercase;
     color: var(--tt-muted);
 }
-
+ 
 html:root .sidebar h2.location a {
     color: var(--tt-text);
     font-weight: 500;
 }
-
+ 
 /* ======================================================================
    Headings (content.css: h1-h5, .modulename)
    ====================================================================== */
@@ -190,22 +190,22 @@ html:root h1, html:root h2, html:root h3, html:root h4 {
     color: var(--tt-text);
     letter-spacing: -0.01em;
 }
-
+ 
 html:root .main-heading h1 {
     font-size: 1.75rem;
     font-weight: 500;
     letter-spacing: -0.02em;
 }
-
+ 
 html:root .main-heading h1 a {
     color: var(--tt-link);
     transition: color 120ms;
 }
-
+ 
 html:root .main-heading h1 a:hover {
     color: var(--tt-link-hover);
 }
-
+ 
 /* ======================================================================
    Links (content.css: a)
    ====================================================================== */
@@ -215,13 +215,13 @@ html:root .item-table a {
     text-decoration: none;
     transition: color 120ms;
 }
-
+ 
 html:root .docblock a:not(.test-arrow):hover,
 html:root .docblock-short a:hover,
 html:root .item-table a:hover {
     color: var(--tt-link-hover);
 }
-
+ 
 /* ======================================================================
    Docstrings (content.css: .docstring)
    ====================================================================== */
@@ -230,19 +230,19 @@ html:root .docblock-short {
     color: var(--tt-muted);
     line-height: 1.75;
 }
-
+ 
 html:root .docblock strong {
     color: var(--tt-text);
     font-weight: 500;
 }
-
+ 
 /* ======================================================================
    Code (content.css: code, pre)
    ====================================================================== */
 code, pre, a.test-arrow, .code-header {
     font-family: 'JetBrains Mono', 'Source Code Pro', monospace;
 }
-
+ 
 /* inline code chips */
 html:root .docblock :not(pre) > code,
 html:root .docblock-short code {
@@ -252,12 +252,12 @@ html:root .docblock-short code {
     border-radius: 4px;
     font-size: 85%;
 }
-
+ 
 html:root .docblock a > code,
 html:root .docblock-short a > code {
     color: inherit;
 }
-
+ 
 /* code blocks */
 html:root .docblock .example-wrap pre {
     background-color: var(--tt-code);
@@ -266,7 +266,7 @@ html:root .docblock .example-wrap pre {
     padding: 0.75rem;
     color: var(--tt-text);
 }
-
+ 
 /* item signatures get pdoc's attribute box (content.css: .attr) */
 html:root pre.item-decl {
     background-color: rgba(36, 68, 89, 0.05);
@@ -275,18 +275,18 @@ html:root pre.item-decl {
     padding: 0.5rem 0.75rem 0.5rem 1rem;
     transition: border-color 150ms;
 }
-
+ 
 html:root pre.item-decl:hover {
     border-color: var(--tt-link);
 }
-
+ 
 /* item names in module listings (content.css: .name) */
 html:root .item-table .item-name a,
 html:root .item-table dt a {
     font-family: 'JetBrains Mono', monospace;
     font-weight: 600;
 }
-
+ 
 /* ======================================================================
    Tables (content.css: table)
    ====================================================================== */
@@ -296,7 +296,7 @@ html:root .docblock table {
     overflow: hidden;
     margin-bottom: 1rem;
 }
-
+ 
 html:root .docblock table th {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.8rem;
@@ -305,17 +305,17 @@ html:root .docblock table th {
     color: var(--tt-link);
     background: var(--tt-nav-hover);
 }
-
+ 
 html:root .docblock table th,
 html:root .docblock table td {
     padding: 8px 14px;
     border: 1px solid var(--tt-accent2);
 }
-
+ 
 html:root .docblock table tr:hover td {
     background: rgba(36, 68, 89, 0.04);
 }
-
+ 
 /* ======================================================================
    Search box + toolbar buttons (layout.css: search input, .pdoc-button)
    ====================================================================== */
@@ -327,16 +327,16 @@ html:root .search-input {
     font-family: 'DM Sans', sans-serif;
     transition: border-color 150ms;
 }
-
+ 
 html:root .search-input:focus {
     border-color: var(--tt-link);
     outline: none;
 }
-
+ 
 html:root .search-input::placeholder {
     color: var(--tt-muted);
 }
-
+ 
 html:root #settings-menu > a,
 html:root #help-button > a,
 html:root #sidebar-button > a,
@@ -348,7 +348,7 @@ html:root rustdoc-toolbar button {
     font-family: 'JetBrains Mono', monospace;
     transition: all 150ms;
 }
-
+ 
 html:root #settings-menu > a:hover,
 html:root #help-button > a:hover,
 html:root #sidebar-button > a:hover,
@@ -358,7 +358,86 @@ html:root rustdoc-toolbar button:hover {
     color: var(--tt-link-hover);
     background: var(--tt-accent);
 }
-
+ 
+/* ======================================================================
+   Logo (layout.css: nav.pdoc .logo)
+   rustdoc's default logo slot is a 48px square; the TerraTexture logo is
+   a wide wordmark, so size it like the pdoc sidebar does instead.
+   ====================================================================== */
+html:root .sidebar-crate .logo-container {
+    margin: 0 0 1rem 0;
+    text-align: center;
+}
+ 
+html:root .sidebar-crate .logo-container > img,
+html:root .logo-container > img {
+    width: calc(100% - 1rem);
+    height: auto;
+    max-height: 35vh;
+    object-fit: contain;
+    opacity: 0.9;
+}
+ 
+html:root .sub-logo-container > img,
+html:root .mobile-topbar .logo-container > img {
+    width: auto;
+    object-fit: contain;
+}
+ 
+/* ======================================================================
+   Brand green (theme.css: --def, --annotation)
+   pdoc uses green for the `def` keyword, the "class " prefix in listings,
+   and type annotations. rustdoc equivalents below.
+   ====================================================================== */
+ 
+/* type annotations in signatures and docs: set directly, not only via
+   --type-link-color, so no built-in theme rule can override them */
+html:root a.type, html:root a.primitive, html:root a.struct,
+html:root a.enum, html:root a.union, html:root a.trait,
+html:root a.traitalias, html:root a.foreigntype,
+html:root span.type, html:root span.primitive, html:root span.struct,
+html:root span.enum, html:root span.trait {
+    color: var(--tt-def);
+}
+ 
+/* the def keyword: green bold kind prefix before each item name in
+   module listings, like pdoc's `def name` and nav "class " prefix */
+html:root .item-table .item-name > a::before,
+html:root .item-table dt > a::before {
+    color: var(--tt-def);
+    font-weight: 600;
+}
+ 
+html:root .item-table .item-name > a.fn::before,
+html:root .item-table dt > a.fn::before { content: "fn "; }
+ 
+html:root .item-table .item-name > a.mod::before,
+html:root .item-table dt > a.mod::before { content: "mod "; }
+ 
+html:root .item-table .item-name > a.constant::before,
+html:root .item-table dt > a.constant::before { content: "const "; }
+ 
+html:root .item-table .item-name > a.struct::before,
+html:root .item-table dt > a.struct::before { content: "struct "; }
+ 
+html:root .item-table .item-name > a.type::before,
+html:root .item-table dt > a.type::before { content: "type "; }
+ 
+/* the prefix is a keyword, not part of the name: keep the name blue */
+html:root .item-table .item-name > a.struct,
+html:root .item-table dt > a.struct,
+html:root .item-table .item-name > a.type,
+html:root .item-table dt > a.type {
+    color: var(--tt-link);
+}
+ 
+/* function names in the sidebar get pdoc's muted "()" suffix */
+html:root .sidebar ul.block.fn a::after {
+    content: "()";
+    color: var(--tt-muted);
+    font-size: 0.8rem;
+}
+ 
 /* ======================================================================
    Other fonts
    ====================================================================== */
