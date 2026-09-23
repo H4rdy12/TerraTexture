@@ -1,24 +1,43 @@
 //! The PyO3 layer: every `#[pyfunction]` wrapper plus the `#[pymodule]`.
 //! This is the only module in the crate that imports `pyo3` or `numpy`.
 //!
-//! Each wrapper does the same three things: unwrap the numpy arrays into
-//! `ndarray` views, call the matching `*_core` function, wrap the result
-//! back into a numpy array.
+//! Each wrapper unwraps the numpy arrays into `ndarray` views, calls the
+//! matching `*_core` function, and wraps the result into a new numpy
+//! array.
 //!
-//! ## Releasing the GIL
+//! # Python docstrings
 //!
-//! The core call in every wrapper runs inside `py.detach(...)`, which
-//! releases the GIL for the duration. The core functions may fan out
-//! across rayon's thread pool, and none of that work touches any Python
-//! object (inputs/outputs are plain ndarray views/buffers, not `PyAny`),
-//! so there's no reason another Python thread (e.g. a contextily
-//! tile-fetch thread) should be blocked while it runs. The GIL is
-//! re-acquired automatically before `detach` returns, before the output
-//! gets wrapped back into a `PyArray`.
+//! PyO3 turns the `///` comments on each `#[pyfunction]` into that
+//! function's Python `__doc__`, so `help(terra_texture_rs.hillshade)`
+//! shows them. They are therefore written for Python callers, in numpy
+//! docstring style, with numpy dtypes rather than Rust types. PyO3 also
+//! generates the call signature, so the docstrings don't repeat it.
+//!
+//! # Types at the boundary
+//!
+//! Every array argument must be a `numpy.ndarray` of dtype `float32`.
+//! Any other dtype (including `float64`) raises `TypeError`; the Python
+//! side is responsible for `.astype(np.float32)`. Non-contiguous arrays
+//! are accepted. Scalar arguments accept any Python `float` or `int`.
+//!
+//! A shape mismatch in the core function panics, which PyO3 surfaces in
+//! Python as `pyo3_runtime.PanicException`. That class derives from
+//! `BaseException`, not `Exception`, so `except Exception:` will not
+//! catch it: validate shapes on the Python side before calling.
+//!
+//! # Releasing the GIL
+//!
+//! Each core call runs inside `py.detach(...)`, which releases the GIL
+//! for the duration. The core functions may fan out across rayon's
+//! thread pool and touch no Python objects, so there's no reason another
+//! Python thread (e.g. a contextily tile-fetch thread) should be blocked
+//! meanwhile. The GIL is re-acquired before `detach` returns.
+//!
+//! # Naming
 //!
 //! Core functions are imported by name rather than via their modules
-//! (`use crate::soft_light;`) because the wrappers here share those
-//! modules' names, and `#[pyfunction]` generates helper items under the
+//! (`use crate::soft_light;`) because the wrappers share those modules'
+//! names, and `#[pyfunction]` generates helper items under the
 //! function's name.
 
 use ndarray::{Array2, Array3};
