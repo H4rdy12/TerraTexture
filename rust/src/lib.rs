@@ -1,46 +1,63 @@
-//! Fused elementwise kernels for `terra_texture.blend`, accelerating the
-//! pure-numpy implementations in `blend.py` without changing their
-//! public behaviour.
+//! Fused elementwise kernels for TerraTexture, accelerating the
+//! pure-numpy implementations in `terra_texture.blend`,
+//! `terra_texture.derivatives` and `terra_texture.stretch` without
+//! changing their public behaviour.
 //!
-//! `blend.py` tries to import this compiled extension and falls back to
-//! its numpy implementation if the import fails (unbuilt, unsupported
-//! platform, or a plain `pip install` without the compiled wheel) --
-//! that fallback is load-bearing, not incidental: the package's stated
-//! design goal is that `terra_texture.derivatives`/`terra_texture.blend`
-//! have zero hard dependencies beyond numpy/scipy.
+//! The Python package tries to import this compiled extension and falls
+//! back to its numpy implementation if the import fails (unbuilt,
+//! unsupported platform, or a plain `pip install` without the compiled
+//! wheel). That fallback is load-bearing, not incidental: the package's
+//! stated design goal is that `terra_texture.derivatives` and
+//! `terra_texture.blend` have zero hard dependencies beyond numpy/scipy.
 //!
-//! ## Structure
+//! # Kernels
 //!
-//! Each kernel lives in its own module and is split into two layers:
-//! - a `*_core` function (in `soft_light`, `luminosity_blend`,
-//!   `curvature`, `hillshade`, `stretch`): pure `ndarray` in, pure
+//! | Module | Core function(s) | Input | Output |
+//! |---|---|---|---|
+//! | [`soft_light`] | [`soft_light_core`], [`soft_light_rgb_core`] | two `f32` arrays, same shape, (H, W) or (H, W, C) | same shape |
+//! | [`luminosity_blend`] | [`luminosity_blend_core`] | `f32` (H, W, 3) + `f32` (H, W) | `f32` (H, W, 3) |
+//! | [`curvature`] | [`curvatures_core`] | `f32` DEM (H, W), NaN-free | two `f32` (H, W) |
+//! | [`hillshade`] | [`hillshade_core`] | `f32` DEM (H, W), NaN-free | `f32` (H, W) in \[0, 1\] |
+//! | [`stretch`] | [`stretch_std_core`] | `f32` (H, W), NaN allowed | `f32` (H, W) in \[0, 1\] or NaN |
+//!
+//! All arrays are `f32` throughout, matching the `float32` arrays the
+//! Python side passes in.
+//!
+//! # Structure
+//!
+//! Each kernel is split into two layers:
+//! - a `*_core` function in its kernel module: pure [`ndarray`] in, pure
 //!   `ndarray` out, no PyO3 types anywhere. This is what
-//!   `benches/blend_bench.rs` and any future `#[test]`s call directly --
-//!   no Python interpreter needed to run them.
-//! - a `#[pyfunction]` wrapper (all in `python`): unwraps the numpy
-//!   arrays into `ndarray` views, calls the core function, wraps the
-//!   result back up. `python` is the only module that knows about
-//!   Python at all -- no other module imports `pyo3` or `numpy`.
-//!
-//! Shared pieces (`PARALLEL_THRESHOLD`, the numpy-compatible
-//! `gradient2d` used by both curvature and hillshade) live in `common`.
+//!   `benches/blend_bench.rs` and any `#[test]`s call directly, with no
+//!   Python interpreter needed.
+//! - a `#[pyfunction]` wrapper in the private `python` module: unwraps
+//!   the numpy arrays into `ndarray` views, calls the core function, and
+//!   wraps the result back up. `python` is the only module that imports
+//!   `pyo3` or `numpy`.
 //!
 //! This split is why `[lib] crate-type` includes `"rlib"` alongside the
-//! `"cdylib"` Python needs -- an rlib is what `cargo bench`/`cargo test`
+//! `"cdylib"` Python needs: an rlib is what `cargo bench`/`cargo test`
 //! link against to call the core functions in-process.
 //!
-//! The public kernel functions are re-exported at the crate root below,
-//! so existing `use terra_texture_rs::soft_light_serial;`-style imports
-//! (e.g. in `benches/blend_bench.rs`) keep working unchanged.
+//! The public kernel functions are re-exported at the crate root, so
+//! `use terra_texture_rs::soft_light_serial;`-style imports (e.g. in
+//! `benches/blend_bench.rs`) work alongside the full module paths.
 //!
-//! ## The serial/parallel threshold
+//! # Output buffers
+//!
+//! Every core function writes into a caller-allocated `out` array rather
+//! than returning a new one, so the Python wrappers can allocate once
+//! and hand the buffer straight back to numpy. `out` must have the shape
+//! stated in each function's docs; mismatched shapes panic (see each
+//! function's **Panics** section).
+//!
+//! # The serial/parallel threshold
 //!
 //! Rayon's parallel dispatch has fixed per-call overhead (splitting work,
 //! synchronizing threads) that only pays for itself once there's enough
-//! work per thread to amortize it. Below `PARALLEL_THRESHOLD` elements,
-//! kernels run a plain serial loop instead of `par_for_each`. The
-//! threshold is a **provisional placeholder**, not a measured value --
-//! see `common::PARALLEL_THRESHOLD`.
+//! work per thread to amortize it. Below [`PARALLEL_THRESHOLD`] elements,
+//! kernels run a plain serial loop instead. The threshold is a
+//! **provisional placeholder**, not a measured value; see its docs.
 
 mod common;
 pub mod curvature;
