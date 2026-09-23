@@ -5,22 +5,38 @@
 //! `_clip_color(backdrop_rgb + d)`, exactly. The numpy version runs the
 //! luminosity shift and `_clip_color()` as two separate, unrelated
 //! passes with intermediate arrays; fusing them here enables one
-//! algebraic shortcut on top of skipping the intermediates:
+//! algebraic shortcut on top of skipping the intermediates.
 //!
-//! After shifting every channel by `d = target_lum - lum(backdrop)`,
-//! `lum(r1, g1, b1) == target_lum` exactly, since the luminance weights
-//! sum to 1.0 (0.3 + 0.59 + 0.11). So `_clip_color`'s own luminance
-//! recomputation can be replaced by reusing `target_lum` directly -- one
-//! fewer weighted sum per pixel.
+//! # Algorithm
 //!
-//! The `*_serial`/`*_parallel` variants are public purely so
-//! `benches/blend_bench.rs` can compare them directly; call
-//! `luminosity_blend_core` everywhere else.
+//! Per pixel, with luminance `lum(r, g, b) = 0.3r + 0.59g + 0.11b`:
+//!
+//! 1. Shift every channel by `d = target_lum - lum(backdrop)`.
+//! 2. Clip the shifted colour back into \[0, 1\] while preserving its
+//!    luminance: first pull the minimum channel up to 0 if it went
+//!    negative, then pull the maximum channel down to 1 if it went over.
+//! 3. Clamp each channel to \[0, 1\] to absorb float error.
+//!
+//! The fusion shortcut: after step 1, `lum(shifted) == target_lum`
+//! exactly, because the weights sum to 1.0. So step 2 reuses
+//! `target_lum` instead of recomputing the weighted sum.
+//!
+//! # Which function to call
+//!
+//! Call [`luminosity_blend_core`]. The `*_serial`/`*_parallel` variants
+//! are public only so `benches/blend_bench.rs` can time both paths to
+//! tune [`PARALLEL_THRESHOLD`].
 
 use ndarray::{Array3, ArrayView1, ArrayView2, ArrayView3, ArrayViewMut2, Zip};
 
 use crate::common::PARALLEL_THRESHOLD;
 
+/// Luminosity blend for one pixel.
+///
+/// Takes the backdrop colour `(r0, g0, b0)` and the `target_lum` to
+/// impose, all `f32` nominally in \[0, 1\]. Returns the blended
+/// `(r, g, b)` as `f32`, each clamped to \[0, 1\]. See the module docs for
+/// the algorithm.
 #[inline]
 fn luminosity_blend_pixel(r0: f32, g0: f32, b0: f32, target_lum: f32) -> (f32, f32, f32) {
     const EPS: f32 = 1e-12;
@@ -56,6 +72,11 @@ fn luminosity_blend_pixel(r0: f32, g0: f32, b0: f32, target_lum: f32) -> (f32, f
     (r3.clamp(0.0, 1.0), g3.clamp(0.0, 1.0), b3.clamp(0.0, 1.0))
 }
 
+/// Luminosity blend for one image row.
+///
+/// * `out_row` - `ArrayViewMut2<f32>`, shape (W, 3): written.
+/// * `backdrop_row` - `ArrayView2<f32>`, shape (W, 3): read.
+/// * `lum_row` - `ArrayView1<f32>`, shape (W,): read.
 #[inline]
 fn luminosity_blend_row(mut out_row: ArrayViewMut2<f32>, backdrop_row: ArrayView2<f32>, lum_row: ArrayView1<f32>) {
     let w = out_row.shape()[0];
@@ -71,7 +92,11 @@ fn luminosity_blend_row(mut out_row: ArrayViewMut2<f32>, backdrop_row: ArrayView
     }
 }
 
-/// Serial variant -- see module docs for why this is public.
+/// Luminosity blend, single-threaded.
+///
+/// Same arguments, output and panics as [`luminosity_blend_core`], but
+/// always runs serially. Public for benchmarking only (see module docs).
+
 pub fn luminosity_blend_serial(backdrop_rgb: ArrayView3<f32>, luminosity: ArrayView2<f32>, out: &mut Array3<f32>) {
     Zip::from(out.outer_iter_mut())
         .and(backdrop_rgb.outer_iter())
@@ -79,7 +104,11 @@ pub fn luminosity_blend_serial(backdrop_rgb: ArrayView3<f32>, luminosity: ArrayV
         .for_each(luminosity_blend_row);
 }
 
-/// Parallel (rayon) variant -- see module docs for why this is public.
+/// Luminosity blend, parallelised across rows with rayon.
+///
+/// Same arguments, output and panics as [`luminosity_blend_core`], but
+/// always runs in parallel. Public for benchmarking only (see module
+/// docs).
 pub fn luminosity_blend_parallel(backdrop_rgb: ArrayView3<f32>, luminosity: ArrayView2<f32>, out: &mut Array3<f32>) {
     Zip::from(out.outer_iter_mut())
         .and(backdrop_rgb.outer_iter())
@@ -87,10 +116,48 @@ pub fn luminosity_blend_parallel(backdrop_rgb: ArrayView3<f32>, luminosity: Arra
         .par_for_each(luminosity_blend_row);
 }
 
-/// Pure computation: 'Luminosity' blend. `backdrop_rgb` is (H, W, 3) in
-/// [0, 1]; `luminosity` is (H, W) in [0, 1]. Dispatches to the serial or
-/// parallel path based on `PARALLEL_THRESHOLD` (counted in pixels, H*W,
-/// not elements).
+/// Replace the luminance of an RGB image with a target luminance,
+/// keeping its hue and saturation. The entry point for this blend.
+///
+/// # Arguments
+///
+/// * `backdrop_rgb` - `ArrayView3<f32>`, shape (H, W, 3): the colour
+///   image, channels in R, G, B order, values nominally in \[0, 1\].
+/// * `luminosity` - `ArrayView2<f32>`, shape (H, W): the target
+///   luminance per pixel (e.g. a hillshade), values nominally in \[0, 1\].
+/// * `out` - `&mut Array3<f32>`, shape (H, W, 3): overwritten with the
+///   blended RGB image, every element in \[0, 1\].
+///
+/// Runs serially below [`PARALLEL_THRESHOLD`]
+/// **pixels** (H × W, not H × W × 3) and in parallel at or above it.
+///
+/// # Panics
+///
+/// * If `backdrop_rgb`, `luminosity` and `out` disagree on H.
+/// * If the channel axis of `backdrop_rgb` or `out` has fewer than 3
+///   entries (out-of-bounds index).
+///
+/// Shapes are only checked by indexing, so some mismatches pass
+/// silently instead of panicking: a W mismatch where `backdrop_rgb` or
+/// `luminosity` is wider than `out` ignores the extra columns, and a
+/// channel count above 3 reads and writes only channels 0 to 2. Always
+/// pass matching (H, W) and exactly 3 channels.
+///
+/// # Example
+///
+/// ```
+/// use ndarray::{Array2, Array3};
+/// use terra_texture_rs::luminosity_blend_core;
+///
+/// // a flat mid-grey image, relit to luminance 0.8
+/// let backdrop = Array3::<f32>::from_elem((2, 2, 3), 0.5);
+/// let lum = Array2::<f32>::from_elem((2, 2), 0.8);
+/// let mut out = Array3::<f32>::zeros(backdrop.raw_dim());
+/// luminosity_blend_core(backdrop.view(), lum.view(), &mut out);
+///
+/// // grey stays grey, now at the target luminance
+/// assert!(out.iter().all(|&v| (v - 0.8).abs() < 1e-5));
+/// ```
 pub fn luminosity_blend_core(backdrop_rgb: ArrayView3<f32>, luminosity: ArrayView2<f32>, out: &mut Array3<f32>) {
     let (h, w, _) = backdrop_rgb.dim();
     if h * w >= PARALLEL_THRESHOLD {

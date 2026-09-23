@@ -4,19 +4,50 @@
 
 use ndarray::{Array2, ArrayView2};
 
-// TODO(benchmark): this is a guess, not a measurement. Run `cargo bench`
-// and replace it with whatever `blend_bench.rs` actually finds as the
-// point where `par_for_each` starts winning over a serial loop on the
-// target hardware. 256x256 = 65_536 is picked only because it "feels"
-// like a plausible order of magnitude for rayon's dispatch overhead to
-// have been amortized -- treat it as unverified until benchmarked.
+/// Element count at or above which kernels switch from a serial loop to
+/// rayon's parallel iteration.
+///
+/// Type: `usize`, counted in array elements. For
+/// [`luminosity_blend_core`](crate::luminosity_blend_core) it is counted
+/// in pixels (H × W) rather than elements (H × W × 3).
+///
+/// **Provisional placeholder, not a measured value.** 256 × 256 = 65,536
+/// was picked only as a plausible order of magnitude for rayon's
+/// dispatch overhead to be amortized. Run `cargo bench` and replace it
+/// with the crossover point `benches/blend_bench.rs` actually measures
+/// on the target hardware.
+// TODO(benchmark): replace with a measured value.
 pub const PARALLEL_THRESHOLD: usize = 65_536;
 
-/// numpy-compatible `np.gradient(arr, spacing)` along axis 0 (rows) and
-/// axis 1 (columns), default `edge_order=1`: one-sided forward/backward
-/// difference at the first/last index of each axis, second-order central
-/// difference everywhere in between. Returns (d/d_axis0, d/d_axis1) --
-/// same order as numpy's `zy, zx = np.gradient(dem, cellsize)`.
+/// numpy-compatible `np.gradient(arr, spacing)` along both axes.
+///
+/// Uses numpy's default `edge_order=1`: a one-sided forward/backward
+/// difference at the first/last index of each axis, and a second-order
+/// central difference everywhere in between.
+///
+/// # Arguments
+///
+/// * `arr` - `ArrayView2<f32>`, shape (H, W). Any memory layout.
+/// * `spacing` - `f32`, grid spacing (the DEM cell size), applied to
+///   both axes.
+///
+/// # Returns
+///
+/// `(d_axis0, d_axis1)`: two newly allocated, C-contiguous
+/// `Array2<f32>` of shape (H, W), the derivative down the rows and across
+/// the columns respectively. Same order as numpy's
+/// `zy, zx = np.gradient(dem, cellsize)`.
+///
+/// # Differences from numpy
+///
+/// If an axis has length 1, this returns zeros for that axis. numpy
+/// instead raises `ValueError` (it needs at least `edge_order + 1 = 2`
+/// elements per axis).
+///
+/// # Panics
+///
+/// If either axis has length 0 while the other does not (out-of-bounds
+/// index on the empty axis).
 pub(crate) fn gradient2d(arr: ArrayView2<f32>, spacing: f32) -> (Array2<f32>, Array2<f32>) {
     let (h, w) = arr.dim();
     let mut d_axis0 = Array2::<f32>::zeros((h, w));
