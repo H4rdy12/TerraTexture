@@ -55,8 +55,8 @@ pub use curvature::curvatures_core;
 pub use hillshade::hillshade_core;
 pub use luminosity_blend::{luminosity_blend_core, luminosity_blend_parallel, luminosity_blend_serial};
 pub use soft_light::{
-    soft_light_core, soft_light_parallel, soft_light_rgb_core, soft_light_rgb_parallel,
-    soft_light_rgb_serial, soft_light_serial,
+    soft_light_core, soft_light_parallel, soft_light_rgb_core, soft_light_rgb_parallel, soft_light_rgb_serial,
+    soft_light_serial,
 };
 pub use stretch::stretch_std_core;
 
