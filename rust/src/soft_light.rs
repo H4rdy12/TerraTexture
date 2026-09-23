@@ -45,7 +45,7 @@ fn soft_light_pixel(a: f32, b: f32) -> f32 {
 // ---------------------------------------------------------------------------
 // 2-D (H, W)
 // ---------------------------------------------------------------------------
- 
+
 /// Soft light blend of two 2-D arrays, single-threaded.
 ///
 /// Same arguments, output and panics as [`soft_light_core`], but always
@@ -121,7 +121,7 @@ pub fn soft_light_core(a: ArrayView2<f32>, b: ArrayView2<f32>, out: &mut Array2<
 // needed: each a[..., c] slice of a contiguous (H, W, C) array is itself
 // non-contiguous. Working on the whole buffer directly means one input
 // read and one output write per element, with no per-channel arrays.
- 
+
 /// Soft light blend of two 3-D arrays, single-threaded.
 ///
 /// Same arguments, output and panics as [`soft_light_rgb_core`], but
