@@ -23,6 +23,37 @@ regenerated.
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=DM+Sans:wght@300;400;500&display=swap">
+<script>
+    /*
+    Logo -> TerraTexture docs landing page (mirrors the pdoc logo, which
+    links to ../index.html).
+     
+    rustdoc has no option for where the logo links: it always points at the
+    crate's own front page. In the deployed site the rustdoc root is
+    site/rust/, so the landing page (site/index.html) is one level above it.
+    rustdoc records each page's relative path back to its root in
+    <meta name="rustdoc-vars" data-root-path="../../">, which makes the
+    landing page root-path + "../index.html" at any depth. If that attribute
+    is ever missing, fall back to two levels up from the logo's own href
+    (<root>/terra_texture_rs/index.html -> <root>/../index.html).
+     
+    Only resolves when the docs sit inside the full site (CI, or
+    `python docs/build_docs.py --rust`); a bare `cargo doc` has no landing
+    page above target/doc/.
+    */
+    document.addEventListener("DOMContentLoaded", function () {
+        var vars = document.querySelector('meta[name="rustdoc-vars"]');
+        var rootPath = vars ? vars.getAttribute("data-root-path") : null;
+        var logos = document.querySelectorAll("a.logo-container, a.sub-logo-container");
+        logos.forEach(function (link) {
+            var landing = rootPath !== null
+                ? new URL(rootPath + "../index.html", document.baseURI)
+                : new URL("../../index.html", link.href);
+            link.href = landing.href;
+            link.title = "TerraTexture docs home";
+        });
+    });
+    </script>
 <style>
 /* ======================================================================
    Palette (theme.css) mapped onto rustdoc's variables
