@@ -31,6 +31,19 @@ use crate::luminosity_blend::luminosity_blend_core;
 use crate::soft_light::{soft_light_core, soft_light_rgb_core};
 use crate::stretch::stretch_std_core;
 
+/// Photoshop-style soft light blend of two 2-D arrays.
+///
+/// Parameters
+/// ----------
+/// base : numpy.ndarray, float32, shape (H, W)
+///     Base layer, values in [0, 1].
+/// blend : numpy.ndarray, float32, shape (H, W)
+///     Blend layer, values in [0, 1]. Same shape as `base`.
+///
+/// Returns
+/// -------
+/// numpy.ndarray, float32, shape (H, W)
+///     Blended result, values in [0, 1].
 #[pyfunction]
 fn soft_light<'py>(
     py: Python<'py>,
@@ -44,6 +57,21 @@ fn soft_light<'py>(
     out.into_pyarray(py)
 }
 
+/// Photoshop-style soft light blend of two multi-channel arrays, in one
+/// pass over all channels.
+///
+/// Parameters
+/// ----------
+/// base : numpy.ndarray, float32, shape (H, W, C)
+///     Base layer (e.g. RGB or RGBA), values in [0, 1].
+/// blend : numpy.ndarray, float32, shape (H, W, C)
+///     Blend layer, values in [0, 1]. Same shape as `base`.
+///
+/// Returns
+/// -------
+/// numpy.ndarray, float32, shape (H, W, C)
+///     Blended result, values in [0, 1]. Each channel is blended
+///     independently.
 #[pyfunction]
 fn soft_light_rgb<'py>(
     py: Python<'py>,
@@ -57,6 +85,20 @@ fn soft_light_rgb<'py>(
     out.into_pyarray(py)
 }
 
+/// 'Luminosity' blend: give an RGB image a new luminance while keeping
+/// its hue and saturation.
+///
+/// Parameters
+/// ----------
+/// backdrop_rgb : numpy.ndarray, float32, shape (H, W, 3)
+///     Colour image in R, G, B order, values in [0, 1].
+/// luminosity : numpy.ndarray, float32, shape (H, W)
+///     Target luminance per pixel (e.g. a hillshade), values in [0, 1].
+///
+/// Returns
+/// -------
+/// numpy.ndarray, float32, shape (H, W, 3)
+///     Blended RGB image, values in [0, 1].
 #[pyfunction]
 fn luminosity_blend<'py>(
     py: Python<'py>,
@@ -70,6 +112,24 @@ fn luminosity_blend<'py>(
     out.into_pyarray(py)
 }
 
+/// Profile and planform curvature of a DEM.
+///
+/// Parameters
+/// ----------
+/// dem : numpy.ndarray, float32, shape (H, W)
+///     Elevations. Must contain no NaN: nan-fill first and re-mask the
+///     results afterwards.
+/// cellsize : float
+///     Grid spacing, in the same units as the elevations.
+///
+/// Returns
+/// -------
+/// profile : numpy.ndarray, float32, shape (H, W)
+///     Curvature in the direction of steepest slope.
+/// planform : numpy.ndarray, float32, shape (H, W)
+///     Curvature perpendicular to the slope.
+///
+/// Flat cells and non-finite results are 0.
 #[pyfunction]
 fn curvatures<'py>(
     py: Python<'py>,
@@ -83,6 +143,25 @@ fn curvatures<'py>(
     (profile.into_pyarray(py), planform.into_pyarray(py))
 }
 
+/// Hillshade (simulated illumination) of a DEM.
+///
+/// Parameters
+/// ----------
+/// dem : numpy.ndarray, float32, shape (H, W)
+///     Elevations. Must contain no NaN: nan-fill first and re-mask the
+///     result afterwards.
+/// cellsize : float
+///     Grid spacing, in the same units as the elevations.
+/// azimuth : float
+///     Direction the light comes from, in degrees clockwise from north
+///     (e.g. 315 for north-west).
+/// altitude : float
+///     Height of the light above the horizon, in degrees (0 to 90).
+///
+/// Returns
+/// -------
+/// numpy.ndarray, float32, shape (H, W)
+///     Illumination in [0, 1]: 0 is fully shaded, 1 fully lit.
 #[pyfunction]
 fn hillshade<'py>(
     py: Python<'py>,
@@ -97,6 +176,20 @@ fn hillshade<'py>(
     out.into_pyarray(py)
 }
 
+/// Contrast-stretch to [0, 1] using mean +/- n_std standard deviations.
+///
+/// Parameters
+/// ----------
+/// arr : numpy.ndarray, float32, shape (H, W)
+///     Input values. NaN marks missing data and is ignored when
+///     computing the mean and standard deviation.
+/// n_std : float
+///     Half-width of the stretch window, in standard deviations.
+///
+/// Returns
+/// -------
+/// numpy.ndarray, float32, shape (H, W)
+///     Stretched values in [0, 1], with NaN wherever `arr` is NaN.
 #[pyfunction]
 fn stretch_std<'py>(py: Python<'py>, arr: PyReadonlyArray2<'py, f32>, n_std: f32) -> Bound<'py, PyArray2<f32>> {
     let a = arr.as_array();
@@ -105,6 +198,10 @@ fn stretch_std<'py>(py: Python<'py>, arr: PyReadonlyArray2<'py, f32>, n_std: f32
     out.into_pyarray(py)
 }
 
+/// Compiled Rust kernels for TerraTexture: soft light and luminosity
+/// blending, DEM curvature and hillshade, and standard-deviation
+/// stretching. Optional accelerated backend: `terra_texture` falls back
+/// to pure numpy when this module isn't built.
 #[pymodule]
 fn terra_texture_rs(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(soft_light, m)?)?;
