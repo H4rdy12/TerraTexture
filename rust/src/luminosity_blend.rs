@@ -1,11 +1,11 @@
 //! SVG/Photoshop 'Luminosity' blend mode, fused into a single per-pixel
 //! pass.
 //!
-//! Matches `blend.py`'s `luminosity_blend()` (== `_clip_color(backdrop_rgb
-//! + d)`) exactly. The numpy version runs the luminosity shift and
-//! `_clip_color()` as two separate, unrelated passes with intermediate
-//! arrays; fusing them here enables one algebraic shortcut on top of
-//! skipping the intermediates:
+//! Matches `blend.py`'s `luminosity_blend()`, i.e.
+//! `_clip_color(backdrop_rgb + d)`, exactly. The numpy version runs the
+//! luminosity shift and `_clip_color()` as two separate, unrelated
+//! passes with intermediate arrays; fusing them here enables one
+//! algebraic shortcut on top of skipping the intermediates:
 //!
 //! After shifting every channel by `d = target_lum - lum(backdrop)`,
 //! `lum(r1, g1, b1) == target_lum` exactly, since the luminance weights
