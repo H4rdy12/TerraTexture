@@ -22,6 +22,14 @@ maturin develop --release
 
 Run `cargo bench` to tune `PARALLEL_THRESHOLD` in `src/lib.rs` against real measurements.
 
+## Lintign fix workflow:
+
+```
+cargo fmt --all
+git add -u
+git commit -m "cargo fmt"
+```
+
 ## License
 
 MIT
