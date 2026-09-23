@@ -179,27 +179,35 @@ jobs:
           fi
 
   # ---------------------------------------------------------------------
-  # DOCS -- build the branded pdoc site (docs_template/, docs/build_docs.py)
-  # once everything else has passed, and only on pushes to main (not PRs,
-  # so unmerged work never gets deployed). Separate build/deploy jobs so
-  # only the deploy step carries the Pages permissions, matching GitHub's
-  # own recommended actions/deploy-pages pattern.
+  # DOCS -- build the Python (pdoc) and Rust (rustdoc) API docs in
+  # PARALLEL once everything else has passed, and only on pushes to main
+  # (not PRs, so unmerged work never gets deployed):
+  #
+  #   docs-python --\
+  #                  >-- docs-assemble --> deploy
+  #   docs-rust ----/
+  #
+  # docs-assemble merges the two into one site, with the rustdoc output
+  # at rust/ -- the path landing.html's Rust card links to
+  # (rust/terra_texture_rs/index.html). Only deploy carries the Pages
+  # permissions, matching GitHub's recommended actions/deploy-pages
+  # pattern.
   # ---------------------------------------------------------------------
-  docs:
+  docs-python:
     needs: all-checks
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-  
+
       - name: Install uv
         uses: astral-sh/setup-uv@v3
         with:
           enable-cache: true
-  
+
       - name: Sync environment (docs + raster + basemap extras)
         run: uv sync --group docs --extra raster --extra basemap
-  
+
       - name: Build docs
         env:
           # pdoc has to actually import TerraTexture to introspect it (this
@@ -208,17 +216,85 @@ jobs:
           # explicitly opting into that. Harmless to set even where it
           # isn't strictly required.
           PDOC_ALLOW_EXEC: "1"
+        # No --rust flag: the Rust docs are built by docs-rust in parallel
+        # and merged in by docs-assemble. The landing page's Rust version
+        # badge is still filled in here, from rust/Cargo.toml.
         run: uv run python docs/build_docs.py
-  
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: docs-python
+          path: docs/site
+          retention-days: 1
+
+  docs-rust:
+    needs: all-checks
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rust/target
+          key: cargo-docs-${{ runner.os }}-${{ hashFiles('rust/Cargo.lock') }}
+
+      - name: cargo doc
+        env:
+          # Setting RUSTDOCFLAGS REPLACES the flags in rust/.cargo/config.toml
+          # rather than adding to them, so the theme header is repeated here
+          # alongside -D warnings (broken doc links / missing docs fail the
+          # build instead of deploying silently).
+          RUSTDOCFLAGS: "-D warnings --html-in-header docs/rustdoc-header.html"
+        run: cargo doc --no-deps
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: docs-rust
+          # the whole target/doc/, not just the crate folder: the pages
+          # need rustdoc's shared static.files/, search index and crates.js
+          path: rust/target/doc
+          retention-days: 1
+
+  docs-assemble:
+    needs: [docs-python, docs-rust]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: docs-python
+          path: site
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: docs-rust
+          path: site/rust
+
+      - name: Check the landing page's Rust link resolves
+        run: |
+          test -f site/index.html
+          test -f site/rust/terra_texture_rs/index.html
+          grep -q 'href="rust/terra_texture_rs/index.html"' site/index.html
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: docs/site
-  
+          path: site
+
   deploy:
     # Separate job so that only actions/deploy-pages has the necessary
-    # permissions -- keeps the build job's permissions minimal.
-    needs: docs
+    # permissions -- keeps the build jobs' permissions minimal.
+    needs: docs-assemble
     runs-on: ubuntu-latest
     permissions:
       pages: write
