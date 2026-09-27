@@ -68,6 +68,7 @@ import os
 import re
 import tarfile
 import zlib
+import rasterio
 from collections.abc import Callable, Iterator, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import ExitStack, contextmanager
@@ -116,8 +117,17 @@ _TIFF_SUFFIXES = (".tif", ".tiff")
 # Attribute used to keep a MemoryFile alive alongside its open dataset.
 _MEMFILE_ATTR = "_terra_texture_memfile"
 
-# GDAL config for unsigned reads from public S3 buckets (PGC is public).
-_GDAL_S3_ENV = {"AWS_NO_SIGN_REQUEST": "YES"}
+# # GDAL config for unsigned reads from public S3 buckets (PGC is public).
+# _GDAL_S3_ENV = {"AWS_NO_SIGN_REQUEST": "YES"}
+
+# GDAL config for remote COG reads: unsigned S3 access (PGC is public),
+# no sidecar-file directory listing on open, and fewer, larger requests.
+_GDAL_REMOTE_ENV = {
+    "AWS_NO_SIGN_REQUEST": "YES",
+    "GDAL_DISABLE_READDIR_ON_OPEN": "EMPTY_DIR",
+    "GDAL_INGESTED_BYTES_AT_OPEN": "32768",
+    "GDAL_HTTP_MERGE_CONSECUTIVE_RANGES": "YES",
+}
 
 # Matches both S3 URL styles GDAL/boto3 encounter in practice:
 #   virtual-hosted: https://<bucket>.s3.<region>.amazonaws.com/<key>
@@ -205,6 +215,13 @@ def _fix_proj_env() -> None:
 
 _fix_proj_env()
 
+# Process-wide cache of remote byte ranges and file metadata, shared by
+# every /vsicurl/ and /vsis3/ read and kept after datasets are closed.
+# Re-loading the same AOI in one session then comes from memory instead
+# of the network. setdefault() leaves a user's own setting untouched.
+# Set here, at import, because GDAL may size this cache only once.
+os.environ.setdefault("CPL_VSIL_CURL_CACHE_SIZE", str(128 * 1024 * 1024))
+
 
 # ---------------------------------------------------------------------------
 # URL helpers
@@ -280,7 +297,8 @@ def _in_gdal_s3_env(func: Callable[..., _T]) -> Callable[..., _T]:
     def wrapper(*args: Any, **kwargs: Any) -> _T:
         import rasterio
 
-        with rasterio.Env(**_GDAL_S3_ENV):
+        # with rasterio.Env(**_GDAL_S3_ENV):
+        with rasterio.Env(**_GDAL_REMOTE_ENV):
             return func(*args, **kwargs)
 
     return wrapper
@@ -456,7 +474,7 @@ def _open_raster_sync(
         target = _https_s3_url_to_vsis3(path)
 
     try:
-        return rasterio.open(target)
+        return rasterio.open(target, num_threads="ALL_CPUS")
     except RasterioError as exc:
         hint = ""
         if target is not path:
@@ -491,7 +509,8 @@ def _open_raster(path: RasterPath) -> Iterator[DatasetReader]:
         ValueError: If an archive contains no TIFF file.
         DEMReadError: If the raster or archive cannot be opened.
     """
-    dataset = _open_raster_sync(path, prefer_s3=False)
+    with rasterio.Env(**_GDAL_REMOTE_ENV):
+        dataset = _open_raster_sync(path, prefer_s3=False)
     try:
         yield dataset
     finally:
@@ -821,7 +840,8 @@ def load_dem_mosaic(
 
     # AWS_NO_SIGN_REQUEST is harmless when nothing is rewritten to
     # /vsis3/: it only affects GDAL's S3 driver.
-    with rasterio.Env(**_GDAL_S3_ENV), ExitStack() as stack:
+    # with rasterio.Env(**_GDAL_S3_ENV), ExitStack() as stack:
+    with rasterio.Env(**_GDAL_REMOTE_ENV), ExitStack() as stack:
         srcs = _map_datasets_concurrently(open_tile, paths, labels, stack)
 
         if target_crs is None:

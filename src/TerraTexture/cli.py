@@ -140,12 +140,13 @@ def main(argv=None):
                 args.collection, bounds, bbox_crs=args.bbox_crs,
                 asset_key=args.asset_key, max_items=args.max_items,
             )
-            with rasterio.open(
-                args.out_tif, "w", driver="GTiff", height=dem.shape[0], width=dem.shape[1],
-                count=1, dtype=dem.dtype, crs=crs, transform=transform,
-            ) as dst:
-                dst.write(dem, 1)
-            print(f"Saved merged DEM to {args.out_tif} (cellsize={cellsize}, crs={crs})")
+            with rasterio.Env(GDAL_NUM_THREADS="ALL_CPUS"):
+                with rasterio.open(
+                    args.out_tif, "w", driver="GTiff", height=dem.shape[0], width=dem.shape[1],
+                    count=1, dtype=dem.dtype, crs=crs, transform=transform,
+                ) as dst:
+                    dst.write(dem, 1)
+                print(f"Saved merged DEM to {args.out_tif} (cellsize={cellsize}, crs={crs})")
 
     elif args.command == "pgc":
         from .sources import arcticdem_mosaic, rema_mosaic
@@ -159,12 +160,13 @@ def main(argv=None):
                 bounds, resolution=args.resolution, bbox_crs=args.bbox_crs,
                 target_crs=args.target_crs, max_items=args.max_items,
             )
-            with rasterio.open(
-                args.out_tif, "w", driver="GTiff", height=dem.shape[0], width=dem.shape[1],
-                count=1, dtype=dem.dtype, crs=crs, transform=transform,
-            ) as dst:
-                dst.write(dem, 1)
-            print(f"Saved merged DEM to {args.out_tif} (cellsize={cellsize}, crs={crs})")
+            with rasterio.Env(GDAL_NUM_THREADS="ALL_CPUS"):
+                with rasterio.open(
+                    args.out_tif, "w", driver="GTiff", height=dem.shape[0], width=dem.shape[1],
+                    count=1, dtype=dem.dtype, crs=crs, transform=transform,
+                ) as dst:
+                    dst.write(dem, 1)
+                print(f"Saved merged DEM to {args.out_tif} (cellsize={cellsize}, crs={crs})")
 
     return 0
 

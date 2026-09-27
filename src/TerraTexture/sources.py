@@ -1333,10 +1333,11 @@ def make_demo_geotiff(
     dem, _ = load_dem(None)
     transform = from_bounds(west, south, east, north, dem.shape[1], dem.shape[0])
 
-    with rasterio.open(
-        out_path, "w", driver="GTiff", height=dem.shape[0], width=dem.shape[1],
-        count=1, dtype=dem.dtype, crs="EPSG:4326", transform=transform,
-    ) as dst:
-        dst.write(dem, 1)
+    with rasterio.Env(GDAL_NUM_THREADS="ALL_CPUS"):
+        with rasterio.open(
+            out_path, "w", driver="GTiff", height=dem.shape[0], width=dem.shape[1],
+            count=1, dtype=dem.dtype, crs="EPSG:4326", transform=transform,
+        ) as dst:
+            dst.write(dem, 1)
 
     return str(out_path)

@@ -14,8 +14,8 @@ draped over a web basemap, or used as a backdrop for your own data.
 
 # Why?
 
-TerraTexture grew out of a plotting tool I built during my PhD. 
-Working with DEMs in polar regions it seemed a shame not to use 
+TerraTexture grew out of a plotting tool I built during my PhD.
+Working with DEMs in polar regions it seemed a shame not to use
 those DEMs to show the texture of the surfaces they describe.
 Default basemaps hide much of the real topographic complexity,
 especially over ice, where the imagery is often a near-uniform white.
@@ -198,4 +198,3 @@ def __dir__() -> list[str]:
         list[str]: Sorted attribute names for tab completion.
     """
     return sorted(set(globals()) | set(__all__))
-
