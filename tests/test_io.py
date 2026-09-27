@@ -165,8 +165,9 @@ def fake_rasterio_open(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     """
     captured: dict[str, Any] = {}
 
-    def _fake_open(path: Any) -> str:
+    def _fake_open(path: Any, **kwargs: Any) -> str:
         captured["path"] = path
+        captured["kwargs"] = kwargs
         return "FAKE_DATASET"
 
     monkeypatch.setattr(rasterio, "open", _fake_open)
@@ -671,7 +672,7 @@ def test_open_raster_sync_failure_after_rewrite_suggests_opt_out(
     """A failed /vsis3/ open names both paths and suggests prefer_s3=False."""
     original = RasterioIOError("simulated S3 access denied")
 
-    def _failing_open(path: Any) -> None:
+    def _failing_open(path: Any, **kwargs: Any) -> None:
         raise original
 
     monkeypatch.setattr(rasterio, "open", _failing_open)
@@ -690,7 +691,7 @@ def test_open_raster_sync_failure_without_rewrite_has_no_hint(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The prefer_s3 hint only appears when a rewrite actually happened."""
-    def _failing_open(path: Any) -> None:
+    def _failing_open(path: Any, **kwargs: Any) -> None:
         raise RasterioIOError("simulated failure")
 
     monkeypatch.setattr(rasterio, "open", _failing_open)
@@ -739,3 +740,11 @@ def test_fill_nan_nearest_all_nan_warns_and_returns_input(
     assert filled is arr
     assert mask.all()
     assert "entirely NaN" in caplog.text
+
+
+def test_open_raster_sync_passes_num_threads(
+    fake_rasterio_open: dict[str, Any],
+) -> None:
+    """Remote opens request multithreaded block reads."""
+    _open_raster_sync(_PGC_REMA_URL, prefer_s3=False)
+    assert "num_threads" in fake_rasterio_open["kwargs"]
