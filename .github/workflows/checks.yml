@@ -36,7 +36,7 @@ jobs:
       - name: Build sdist + wheel
         run: uv build
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: python-dist
           path: dist/
@@ -227,7 +227,7 @@ jobs:
         # badge is still filled in here, from rust/Cargo.toml.
         run: uv run python docs/build_docs.py
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: docs-python
           path: docs/site
@@ -264,7 +264,7 @@ jobs:
           RUSTDOCFLAGS: "-D warnings --html-in-header docs/rustdoc-header.html"
         run: cargo doc --no-deps
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: docs-rust
           # the whole target/doc/, not just the crate folder: the pages
