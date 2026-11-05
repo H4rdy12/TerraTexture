@@ -9,6 +9,7 @@ name: build-wheels
 on:
   push:
     tags: ["v*"]
+
 permissions:
   contents: read
 
