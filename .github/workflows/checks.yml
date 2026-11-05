@@ -12,6 +12,12 @@ on:
   pull_request:
     branches: [main]
 
+# Read-only token for every job: enough for actions/checkout, nothing
+# that can write to the repo. Only `deploy` overrides this (a job-level
+# block REPLACES this one rather than adding to it).
+permissions:
+  contents: read
+
 jobs:
   # ---------------------------------------------------------------------
   # BUILD -- confirms the Python package and the Rust crate actually
@@ -297,9 +303,9 @@ jobs:
     needs: docs-assemble
     runs-on: ubuntu-latest
     permissions:
-      pages: write
-      actions: read
-      id-token: write
+      pages: write     # create the Pages deployment
+      id-token: write  # OIDC token proving the deploy comes from this workflow
+      actions: read    # read the Pages artifact from docs-assemble
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
