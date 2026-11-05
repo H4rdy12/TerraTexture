@@ -270,12 +270,12 @@ jobs:
     needs: [docs-python, docs-rust]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: docs-python
           path: site
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: docs-rust
           path: site/rust
